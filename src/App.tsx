@@ -108,14 +108,17 @@ function HomePage() {
 function App() {
   return (
     <BrowserRouter>
-      <Navigation />
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/jsonPath" element={<JsonPathTool />} />
-        <Route path="/notes" element={<SecureNotesApp />} />
-		<Route path="/distinct" element={<DistinctListInput />} />
-        {/* Add more routes here for future tools */}
-      </Routes>
+      <div className="h-screen flex flex-col">
+        <Navigation />
+        <div className="flex-1 min-h-0 overflow-auto">
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/jsonPath" element={<JsonPathTool />} />
+            <Route path="/notes" element={<SecureNotesApp />} />
+            <Route path="/distinct" element={<DistinctListInput />} />
+          </Routes>
+        </div>
+      </div>
     </BrowserRouter>
   );
 }

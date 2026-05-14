@@ -94,13 +94,13 @@ export default function DistinctListInput() {
   const distinctCount = distinctItems.length;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-8">
-      <div className="max-w-6xl mx-auto">
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <h1 className="text-3xl font-bold text-gray-800 mb-6">Distinct Count & Duplicate Finder</h1>
-          
-          <div className="grid lg:grid-cols-3 gap-6">
-            <div>
+    <div className="h-full bg-gradient-to-br from-slate-50 to-blue-50 p-4 flex flex-col">
+      <div className="flex-1 flex flex-col min-h-0">
+        <div className="bg-white rounded-lg shadow-lg p-6 flex-1 flex flex-col min-h-0">
+          <h1 className="text-3xl font-bold text-gray-800 mb-4">Distinct Count & Duplicate Finder</h1>
+
+          <div className="grid lg:grid-cols-3 gap-6 flex-1 min-h-0">
+            <div className="flex flex-col min-h-0">
               <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Input List (paste your items here)
               </label>
@@ -108,7 +108,7 @@ export default function DistinctListInput() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="V1101501&#10;V1101502&#10;V1101502&#10;V1101928"
-                className="w-full h-64 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm resize-none"
+                className="w-full flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm resize-none min-h-0"
               />
               
               <div className="flex gap-3 mt-4">
@@ -129,12 +129,12 @@ export default function DistinctListInput() {
               </div>
             </div>
 
-            <div>
+            <div className="flex flex-col min-h-0">
               <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Summary
               </label>
-              
-              <div className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-lg p-6 mb-4">
+
+              <div className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-lg p-6 mb-4 shrink-0">
                 <div className="text-sm opacity-90 mb-1">Distinct Count</div>
                 <div className="text-5xl font-bold">{distinctCount}</div>
                 {totalCount > 0 && (
@@ -144,7 +144,7 @@ export default function DistinctListInput() {
                 )}
               </div>
 
-              <div className="bg-gray-50 rounded-lg p-4 h-48 overflow-y-auto">
+              <div className="bg-gray-50 rounded-lg p-4 flex-1 overflow-y-auto min-h-0">
                 <div className="flex justify-between items-center mb-3">
                   <h3 className="text-sm font-semibold text-gray-700">
                     All Distinct Items
@@ -192,17 +192,17 @@ export default function DistinctListInput() {
               </div>
             </div>
 
-            <div>
+            <div className="flex flex-col min-h-0">
               <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Duplicates
               </label>
-              
-              <div className="bg-gradient-to-br from-red-500 to-orange-600 text-white rounded-lg p-6 mb-4">
+
+              <div className="bg-gradient-to-br from-red-500 to-orange-600 text-white rounded-lg p-6 mb-4 shrink-0">
                 <div className="text-sm opacity-90 mb-1">Duplicate Items Found</div>
                 <div className="text-5xl font-bold">{duplicates.length}</div>
               </div>
 
-              <div className="bg-red-50 rounded-lg p-4 h-48 overflow-y-auto border-2 border-red-200">
+              <div className="bg-red-50 rounded-lg p-4 flex-1 overflow-y-auto min-h-0 border-2 border-red-200">
                 <div className="flex justify-between items-center mb-3">
                   <h3 className="text-sm font-semibold text-red-800 flex items-center gap-2">
                     <AlertCircle size={16} />

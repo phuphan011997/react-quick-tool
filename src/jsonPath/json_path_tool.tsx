@@ -1,5 +1,43 @@
-import { useState } from 'react';
-import { Search, Copy, Check, AlertCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Search, Copy, Check, AlertCircle, Wand2 } from 'lucide-react';
+
+function generatePaths(obj: unknown, prefix = '', depth = 0): { path: string; desc: string }[] {
+  if (depth > 3) return [];
+  const paths: { path: string; desc: string }[] = [];
+
+  if (Array.isArray(obj)) {
+    if (obj.length > 0) {
+      paths.push({ path: `${prefix}[0]`, desc: 'First element' });
+      if (typeof obj[0] === 'object' && obj[0] !== null && !Array.isArray(obj[0])) {
+        for (const subKey of Object.keys(obj[0] as object).slice(0, 3)) {
+          paths.push({ path: `${prefix}[*].${subKey}`, desc: `All "${subKey}" values` });
+        }
+      }
+    }
+  } else if (typeof obj === 'object' && obj !== null) {
+    for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+      const path = prefix ? `${prefix}.${key}` : key;
+      if (Array.isArray(value)) {
+        paths.push({ path, desc: `Array (${value.length} items)` });
+        if (value.length > 0 && typeof value[0] === 'object' && value[0] !== null && !Array.isArray(value[0])) {
+          for (const subKey of Object.keys(value[0] as object).slice(0, 3)) {
+            paths.push({ path: `${path}[*].${subKey}`, desc: `All "${subKey}" from array` });
+          }
+        } else if (value.length > 0) {
+          paths.push({ path: `${path}[0]`, desc: 'First item' });
+        }
+      } else if (typeof value === 'object' && value !== null) {
+        paths.push({ path, desc: 'Object' });
+        paths.push(...generatePaths(value, path, depth + 1));
+      } else {
+        const preview = String(value).substring(0, 30);
+        paths.push({ path, desc: `→ ${preview}` });
+      }
+    }
+  }
+
+  return paths;
+}
 
 export default function JsonPathTool() {
   const [jsonInput, setJsonInput] = useState('{\n  "user": {\n    "name": "John Doe",\n    "age": 30,\n    "email": "john@example.com",\n    "address": {\n      "city": "New York",\n      "country": "USA"\n    },\n    "hobbies": ["reading", "gaming", "coding"]\n  },\n  "data": {\n    "records": [\n      {"id": 1, "name": "Alice"},\n      {"id": 2, "name": "Bob"},\n      {"id": 3, "name": "Charlie"}\n    ]\n  }\n}');
@@ -7,28 +45,45 @@ export default function JsonPathTool() {
   const [result, setResult] = useState('');
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  const [examplePaths, setExamplePaths] = useState<{ path: string; desc: string }[]>([]);
+
+  useEffect(() => {
+    try {
+      const parsed = JSON.parse(jsonInput);
+      setExamplePaths(generatePaths(parsed).slice(0, 12));
+    } catch {
+      setExamplePaths([]);
+    }
+  }, [jsonInput]);
+
+  const handleBeautify = () => {
+    try {
+      const parsed = JSON.parse(jsonInput);
+      setJsonInput(JSON.stringify(parsed, null, 2));
+      setError('');
+    } catch {
+      setError('Invalid JSON — cannot beautify');
+    }
+  };
 
   const evaluateJsonPath = () => {
     try {
       setError('');
       const parsedJson = JSON.parse(jsonInput);
-      
-      // Split path by dots, handling array indices
+
       const pathParts = jsonPath.split('.').filter(p => p.length > 0);
-      
+
       let current = parsedJson;
       for (let i = 0; i < pathParts.length; i++) {
         const part = pathParts[i];
-        
-        // Handle wildcard array [*]
+
         const wildcardMatch = part.match(/^(\w+)\[\*\]$/);
         if (wildcardMatch) {
           const [, key] = wildcardMatch;
           current = current[key];
           if (current === undefined) throw new Error(`Property "${key}" not found`);
           if (!Array.isArray(current)) throw new Error(`Property "${key}" is not an array`);
-          
-          // If there are more parts after [*], apply them to each element
+
           if (i < pathParts.length - 1) {
             const remainingPath = pathParts.slice(i + 1);
             current = current.map(item => {
@@ -39,13 +94,11 @@ export default function JsonPathTool() {
               }
               return temp;
             }).filter(item => item !== undefined);
-            break; // We've processed all remaining parts
+            break;
           }
-          // If [*] is the last part, return the whole array
           break;
         }
-        
-        // Handle specific array indices like hobbies[0]
+
         const arrayMatch = part.match(/^(\w+)\[(\d+)\]$/);
         if (arrayMatch) {
           const [, key, index] = arrayMatch;
@@ -58,7 +111,7 @@ export default function JsonPathTool() {
           if (current === undefined) throw new Error(`Property "${part}" not found in path`);
         }
       }
-      
+
       setResult(JSON.stringify(current, null, 2));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -72,15 +125,6 @@ export default function JsonPathTool() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const examplePaths = [
-    { path: 'user.name', desc: 'Get user name' },
-    { path: 'user.address.city', desc: 'Get nested city' },
-    { path: 'user.hobbies[0]', desc: 'Get first hobby' },
-    { path: 'data.records[*].id', desc: 'Get all IDs from array' },
-    { path: 'data.records[*].name', desc: 'Get all names from array' },
-    { path: 'user', desc: 'Get entire user object' },
-  ];
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6">
       <div className="max-w-6xl mx-auto">
@@ -92,7 +136,16 @@ export default function JsonPathTool() {
         <div className="grid md:grid-cols-2 gap-6">
           {/* Input Section */}
           <div className="bg-white/10 backdrop-blur-lg rounded-lg p-6 border border-white/20">
-            <h2 className="text-xl font-semibold text-white mb-4">JSON Input</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-white">JSON Input</h2>
+              <button
+                onClick={handleBeautify}
+                className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium px-3 py-1.5 rounded-lg transition-colors"
+              >
+                <Wand2 size={15} />
+                Beautify
+              </button>
+            </div>
             <textarea
               value={jsonInput}
               onChange={(e) => setJsonInput(e.target.value)}
@@ -113,7 +166,7 @@ export default function JsonPathTool() {
                 placeholder="e.g., user.address.city"
               />
             </div>
-            
+
             <button
               onClick={evaluateJsonPath}
               className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2"
@@ -123,19 +176,26 @@ export default function JsonPathTool() {
             </button>
 
             <div className="mt-4">
-              <h3 className="text-sm font-semibold text-purple-200 mb-2">Example Paths:</h3>
-              <div className="space-y-2">
-                {examplePaths.map((ex, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => setJsonPath(ex.path)}
-                    className="w-full text-left p-2 bg-slate-800/50 hover:bg-slate-800 rounded text-sm text-white transition-colors"
-                  >
-                    <code className="text-purple-300">{ex.path}</code>
-                    <span className="text-slate-400 ml-2">- {ex.desc}</span>
-                  </button>
-                ))}
-              </div>
+              <h3 className="text-sm font-semibold text-purple-200 mb-2">
+                Example Paths:
+                {examplePaths.length === 0 && (
+                  <span className="text-slate-400 font-normal ml-2">enter valid JSON to auto-generate</span>
+                )}
+              </h3>
+              {examplePaths.length > 0 && (
+                <div className="space-y-1 max-h-48 overflow-y-auto">
+                  {examplePaths.map((ex, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setJsonPath(ex.path)}
+                      className="w-full text-left p-2 bg-slate-800/50 hover:bg-slate-800 rounded text-sm text-white transition-colors"
+                    >
+                      <code className="text-purple-300">{ex.path}</code>
+                      <span className="text-slate-400 ml-2">- {ex.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -154,7 +214,7 @@ export default function JsonPathTool() {
               </button>
             )}
           </div>
-          
+
           {error && (
             <div className="bg-red-500/20 border border-red-500 rounded p-4 flex items-start gap-3">
               <AlertCircle className="text-red-400 flex-shrink-0 mt-0.5" size={20} />
@@ -164,13 +224,13 @@ export default function JsonPathTool() {
               </div>
             </div>
           )}
-          
+
           {result && !error && (
             <pre className="bg-slate-800 text-green-300 p-4 rounded overflow-x-auto font-mono text-sm">
               {result}
             </pre>
           )}
-          
+
           {!result && !error && (
             <p className="text-slate-400 text-center py-8">Enter a JSON path and click "Query JSON" to see results</p>
           )}
