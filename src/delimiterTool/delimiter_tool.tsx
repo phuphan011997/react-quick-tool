@@ -4,6 +4,7 @@ import { Copy, Check, Trash2 } from 'lucide-react';
 const PRESETS = [
   { label: 'Comma', value: ',' },
   { label: 'Comma + Space', value: ', ' },
+  { label: 'Comma + Enter', value: ',\n' },
   { label: 'Semicolon', value: ';' },
   { label: 'Pipe', value: ' | ' },
   { label: 'Space', value: ' ' },
