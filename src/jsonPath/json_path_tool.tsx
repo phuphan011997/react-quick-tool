@@ -77,6 +77,34 @@ export default function JsonPathTool() {
       for (let i = 0; i < pathParts.length; i++) {
         const part = pathParts[i];
 
+        // Standalone [*] — root or chained array wildcard (e.g. "[*].id")
+        if (part.match(/^\[\*\]$/)) {
+          if (!Array.isArray(current)) throw new Error('Current value is not an array');
+          if (i < pathParts.length - 1) {
+            const remainingPath = pathParts.slice(i + 1);
+            current = current.map(item => {
+              let temp = item;
+              for (const remainingPart of remainingPath) {
+                if (temp === undefined) return undefined;
+                temp = temp[remainingPart];
+              }
+              return temp;
+            }).filter(item => item !== undefined);
+            break;
+          }
+          break;
+        }
+
+        // Standalone [N] — root or chained array index (e.g. "[0].name")
+        const standaloneIndex = part.match(/^\[(\d+)\]$/);
+        if (standaloneIndex) {
+          if (!Array.isArray(current)) throw new Error('Current value is not an array');
+          current = current[parseInt(standaloneIndex[1])];
+          if (current === undefined) throw new Error(`Index ${standaloneIndex[1]} out of bounds`);
+          continue;
+        }
+
+        // key[*] — wildcard after a named key (e.g. "records[*]")
         const wildcardMatch = part.match(/^(\w+)\[\*\]$/);
         if (wildcardMatch) {
           const [, key] = wildcardMatch;
@@ -99,6 +127,7 @@ export default function JsonPathTool() {
           break;
         }
 
+        // key[N] — named key with index (e.g. "hobbies[0]")
         const arrayMatch = part.match(/^(\w+)\[(\d+)\]$/);
         if (arrayMatch) {
           const [, key, index] = arrayMatch;
