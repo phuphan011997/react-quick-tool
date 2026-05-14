@@ -3,10 +3,10 @@ import { List, Trash2, AlertCircle, Copy, Check } from 'lucide-react';
 
 export default function DistinctListInput() {
   const [input, setInput] = useState('');
-  const [distinctItems, setDistinctItems] = useState([]);
+  const [distinctItems, setDistinctItems] = useState<string[]>([]);
   const [totalCount, setTotalCount] = useState(0);
-  const [itemCounts, setItemCounts] = useState({});
-  const [duplicates, setDuplicates] = useState([]);
+  const [itemCounts, setItemCounts] = useState<Record<string, number>>({});
+  const [duplicates, setDuplicates] = useState<{ item: string; count: number }[]>([]);
   const [copied, setCopied] = useState(false);
   const [copiedDuplicates, setCopiedDuplicates] = useState(false);
 
@@ -15,11 +15,11 @@ export default function DistinctListInput() {
     const unique = [...new Set(lines)];
     
     // Count occurrences of each item
-    const counts = {};
+    const counts: Record<string, number> = {};
     lines.forEach(item => {
       counts[item] = (counts[item] || 0) + 1;
     });
-    
+
     // Find duplicates (items that appear more than once)
     const dupes = Object.entries(counts)
       .filter(([_, count]) => count > 1)

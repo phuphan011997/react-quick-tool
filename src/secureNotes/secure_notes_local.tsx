@@ -19,7 +19,7 @@ export default function SecureNotesApp() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [viewingNote, setViewingNote] = useState<Note | null>(null);
-  const [newNote, setNewNote] = useState({ title: '', content: '', isTask: false, status: 'pending', color: 'purple' });
+  const [newNote, setNewNote] = useState<{ title: string; content: string; isTask: boolean; status: 'pending' | 'complete'; color: string }>({ title: '', content: '', isTask: false, status: 'pending', color: 'purple' });
   const [error, setError] = useState('');
 
   const colors = [
