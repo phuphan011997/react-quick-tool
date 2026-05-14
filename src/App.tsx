@@ -3,6 +3,7 @@ import './App.css'
 import JsonPathTool from "./jsonPath/json_path_tool";
 import SecureNotesApp from "./secureNotes/secure_notes_local";
 import DistinctListInput from "./distinctTool/distinct-list-input";
+import DelimiterTool from "./delimiterTool/delimiter_tool";
 
 // Navigation component
 function Navigation() {
@@ -12,6 +13,7 @@ function Navigation() {
     { path: '/jsonPath', name: 'JSON Path Tool', icon: '🔍' },
     { path: '/notes', name: 'Notes', icon: '📒' },
 	{ path: '/distinct', name: 'Distinct Tool', icon: '⌘' },
+    { path: '/delimiter', name: 'Delimiter Tool', icon: '🔗' },
     // Add more tools here in the future
     // { path: '/csv-parser', name: 'CSV Parser', icon: '📊' },
     // { path: '/base64', name: 'Base64 Encoder', icon: '🔐' },
@@ -68,6 +70,12 @@ function HomePage() {
       icon: '⌘',
       description: 'Check distinct and get unique list'
     },
+    {
+      path: '/delimiter',
+      name: 'Delimiter Tool',
+      icon: '🔗',
+      description: 'Join a list with any delimiter, wrap items, and format output'
+    },
     // Add more tools here
   ];
 
@@ -116,6 +124,7 @@ function App() {
             <Route path="/jsonPath" element={<JsonPathTool />} />
             <Route path="/notes" element={<SecureNotesApp />} />
             <Route path="/distinct" element={<DistinctListInput />} />
+            <Route path="/delimiter" element={<DelimiterTool />} />
           </Routes>
         </div>
       </div>
