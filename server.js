@@ -8,7 +8,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
 // Local CORS Proxy Middleware
-app.use('/local-proxy', (req, res, next) => {
+app.use('/api/proxy', (req, res, next) => {
   const urlParam = new URL('http://localhost' + req.url).searchParams.get('url');
   if (!urlParam) {
     res.status(400).send('Missing "url" parameter');

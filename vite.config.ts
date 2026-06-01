@@ -32,7 +32,7 @@ export default defineConfig({
           }
         });
         
-        server.middlewares.use('/local-proxy', (req, res, next) => {
+        server.middlewares.use('/api/proxy', (req, res, next) => {
           const urlParam = new URL('http://localhost' + (req.url || '')).searchParams.get('url');
           if (!urlParam) {
             res.statusCode = 400;

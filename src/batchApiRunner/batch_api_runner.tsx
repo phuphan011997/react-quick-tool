@@ -31,7 +31,7 @@ export default function BatchApiRunner() {
   
   // Cấu hình Bypass CORS Proxy
   const [useCorsProxy, setUseCorsProxy] = useState(false);
-  const [corsProxyUrl, setCorsProxyUrl] = useState('/local-proxy?url={{url}}');
+  const [corsProxyUrl, setCorsProxyUrl] = useState('/api/proxy?url={{url}}');
 
   // Trạng thái thực thi cuộc gọi (Dùng cho UI hiển thị)
   const [isRunning, setIsRunning] = useState(false);
