@@ -31,7 +31,7 @@ export default function BatchApiRunner() {
   
   // Cấu hình Bypass CORS Proxy
   const [useCorsProxy, setUseCorsProxy] = useState(false);
-  const [corsProxyUrl, setCorsProxyUrl] = useState('https://api.allorigins.win/raw?url={{url}}');
+  const [corsProxyUrl, setCorsProxyUrl] = useState('/local-proxy?url={{url}}');
 
   // Trạng thái thực thi cuộc gọi (Dùng cho UI hiển thị)
   const [isRunning, setIsRunning] = useState(false);
@@ -148,18 +148,25 @@ export default function BatchApiRunner() {
       const formattedUrl = interpolate(apiUrl, item);
       const formattedBody = httpMethod !== 'GET' ? interpolate(bodyTemplate, item) : null;
       
+      const requestId = crypto.randomUUID();
+
       const requestHeaders: Record<string, string> = {};
       headers.forEach(h => {
         if (h.key.trim()) {
           requestHeaders[h.key] = interpolate(h.value, item);
         }
       });
+      // Tự động thêm X-Request-ID nếu người dùng chưa tự cấu hình
+      if (!requestHeaders['X-Request-ID'] && !requestHeaders['x-request-id']) {
+        requestHeaders['X-Request-ID'] = requestId;
+      }
 
       const startTime = Date.now();
       let logEntry = {
         index: i + 1,
         total: parsedData.length,
         itemData: item,
+        requestId,
         url: formattedUrl,
         method: httpMethod,
         headersSent: requestHeaders,
@@ -938,9 +945,45 @@ export default function BatchApiRunner() {
                     {/* Chi tiết Request đã cấu hình & gửi */}
                     {activeTaskDetail.logInfo ? (
                       <div className="space-y-3 pt-2 border-t border-slate-800">
-                        <span className="text-[11px] text-slate-400 font-semibold block">2. Chi tiết Request gửi đi:</span>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] text-slate-400 font-semibold block">2. Chi tiết Request gửi đi:</span>
+                          <button
+                            onClick={() => {
+                              const logInfo = activeTaskDetail.logInfo;
+                              let curl = `curl -X ${logInfo.method} "${logInfo.url}"`;
+                              if (logInfo.headersSent) {
+                                Object.entries(logInfo.headersSent).forEach(([key, value]) => {
+                                  curl += ` \\\n  -H "${key}: ${value}"`;
+                                });
+                              }
+                              if (logInfo.bodySent) {
+                                const escapedBody = logInfo.bodySent.replace(/'/g, "'\\''");
+                                curl += ` \\\n  -d '${escapedBody}'`;
+                              }
+                              navigator.clipboard.writeText(curl);
+                              
+                              const btn = document.getElementById('copy-curl-btn');
+                              if (btn) {
+                                const originalHTML = btn.innerHTML;
+                                btn.innerHTML = '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Đã Copy!';
+                                btn.classList.add('text-emerald-400', 'border-emerald-500/50');
+                                setTimeout(() => {
+                                  btn.innerHTML = originalHTML;
+                                  btn.classList.remove('text-emerald-400', 'border-emerald-500/50');
+                                }, 2000);
+                              }
+                            }}
+                            id="copy-curl-btn"
+                            className="text-[10px] bg-slate-800 hover:bg-indigo-600 text-slate-300 hover:text-white px-2.5 py-1 rounded transition-colors flex items-center gap-1.5 border border-slate-700"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                            Copy cURL
+                          </button>
+                        </div>
                         
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs font-mono">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs font-mono">
                           <div className="bg-slate-900/60 p-2.5 rounded-lg border border-slate-800/80">
                             <span className="text-slate-500 block text-[10px]">Phương thức (Method):</span>
                             <span className="text-indigo-400 font-bold">{activeTaskDetail.logInfo.method}</span>
@@ -948,6 +991,10 @@ export default function BatchApiRunner() {
                           <div className="bg-slate-900/60 p-2.5 rounded-lg border border-slate-800/80">
                             <span className="text-slate-500 block text-[10px]">Thời gian gọi:</span>
                             <span className="text-slate-300">{activeTaskDetail.logInfo.timestamp}</span>
+                          </div>
+                          <div className="bg-slate-900/60 p-2.5 rounded-lg border border-slate-800/80">
+                            <span className="text-slate-500 block text-[10px]">Request ID:</span>
+                            <span className="text-slate-300 truncate" title={activeTaskDetail.logInfo.requestId}>{activeTaskDetail.logInfo.requestId || 'N/A'}</span>
                           </div>
                         </div>
 
