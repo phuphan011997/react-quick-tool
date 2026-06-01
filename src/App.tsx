@@ -4,6 +4,7 @@ import JsonPathTool from "./jsonPath/json_path_tool";
 import SecureNotesApp from "./secureNotes/secure_notes_local";
 import DistinctListInput from "./distinctTool/distinct-list-input";
 import DelimiterTool from "./delimiterTool/delimiter_tool";
+import BatchApiRunner from "./batchApiRunner/batch_api_runner";
 
 // Navigation component
 function Navigation() {
@@ -14,6 +15,7 @@ function Navigation() {
     { path: '/notes', name: 'Notes', icon: '📒' },
 	{ path: '/distinct', name: 'Distinct Tool', icon: '⌘' },
     { path: '/delimiter', name: 'Delimiter Tool', icon: '🔗' },
+    { path: '/batch-api', name: 'Batch API Runner', icon: '🚀' },
     // Add more tools here in the future
     // { path: '/csv-parser', name: 'CSV Parser', icon: '📊' },
     // { path: '/base64', name: 'Base64 Encoder', icon: '🔐' },
@@ -76,6 +78,12 @@ function HomePage() {
       icon: '🔗',
       description: 'Join a list with any delimiter, wrap items, and format output'
     },
+    {
+      path: '/batch-api',
+      name: 'Batch API Runner',
+      icon: '🚀',
+      description: 'Run APIs in batch from JSON input'
+    },
     // Add more tools here
   ];
 
@@ -125,6 +133,7 @@ function App() {
             <Route path="/notes" element={<SecureNotesApp />} />
             <Route path="/distinct" element={<DistinctListInput />} />
             <Route path="/delimiter" element={<DelimiterTool />} />
+            <Route path="/batch-api" element={<BatchApiRunner />} />
           </Routes>
         </div>
       </div>
