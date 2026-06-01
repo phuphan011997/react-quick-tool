@@ -26,7 +26,7 @@ export default function BatchApiRunner() {
   
   // Cấu hình nâng cao
   const [delayMs, setDelayMs] = useState(1000); // Độ trễ giữa các request (ms)
-  const [isMockMode, setIsMockMode] = useState(true); // Mặc định bật chế độ giả lập để chạy thử an toàn
+  const [isMockMode, setIsMockMode] = useState(false); // Mặc định bật chế độ giả lập để chạy thử an toàn
   const [stopOnError, setStopOnError] = useState(false); // Dừng lại nếu gặp lỗi
   
   // Cấu hình Bypass CORS Proxy
@@ -373,10 +373,22 @@ export default function BatchApiRunner() {
         
         {/* Chế độ chạy */}
         <div className="hidden md:flex items-center gap-4 text-sm text-slate-300">
-          <span className="flex items-center gap-1.5 bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
-            Chế độ chạy thử: <strong className="text-white">{isMockMode ? "BẬT" : "TẮT"}</strong>
-          </span>
+          <label className="flex items-center gap-2 bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer hover:bg-slate-700 transition-colors">
+            <span className={`w-2 h-2 rounded-full ${isMockMode ? 'bg-indigo-500 animate-ping' : 'bg-slate-500'}`}></span>
+            <span className="text-xs font-medium text-slate-300">Giả Lập Mock API:</span>
+            <div className="relative inline-flex items-center">
+              <input 
+                type="checkbox" 
+                checked={isMockMode} 
+                onChange={(e) => setIsMockMode(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-8 h-4 bg-slate-900 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-400 after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-indigo-500 peer-checked:after:bg-white"></div>
+            </div>
+            <strong className={`text-xs ml-1 ${isMockMode ? 'text-indigo-400' : 'text-slate-500'}`}>
+              {isMockMode ? "BẬT" : "TẮT"}
+            </strong>
+          </label>
         </div>
       </header>
 
@@ -544,7 +556,7 @@ export default function BatchApiRunner() {
               <h2 className="text-base font-semibold text-slate-200">Cấu Hình Nâng Cao</h2>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {/* Delay range */}
               <div className="bg-slate-900/60 p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
                 <div>
@@ -582,23 +594,6 @@ export default function BatchApiRunner() {
                   </label>
                 </div>
                 <p className="text-[10px] text-slate-500 mt-2">Dừng toàn bộ tiến trình nếu một API gọi thất bại.</p>
-              </div>
-
-              {/* Mock mode toggler */}
-              <div className="bg-slate-900/60 p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-indigo-300">Giả Lập Mock API</label>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input 
-                      type="checkbox" 
-                      checked={isMockMode} 
-                      onChange={(e) => setIsMockMode(e.target.checked)}
-                      className="sr-only peer"
-                    />
-                    <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-500"></div>
-                  </label>
-                </div>
-                <p className="text-[10px] text-slate-400 mt-2">Chạy thử nghiệm mô phỏng không gọi thật.</p>
               </div>
 
               {/* CORS Bypass Proxy Configuration */}
