@@ -1,0 +1,1802 @@
+<!DOCTYPE html>
+<html lang="vi" class="h-full bg-slate-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DCorp PO to Goods Receipt Automation</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom scrollbar for log terminals */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body class="h-full">
+    <div id="root" class="h-full"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // Custom Icon Component to avoid mutating DOM and causing React reconciliation crashes
+        function Icon({ name, className = "w-4 h-4" }) {
+            const icons = {
+                "package-plus": (
+                    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M16.5 9.4 7.55 4.24a1.79 1.79 0 0 0-1.8 0l-1.35.78a1.8 1.8 0 0 0-.9 1.56v10.84a1.8 1.8 0 0 0 .9 1.56l9 5.2a1.8 1.8 0 0 0 1.8 0l9-5.2a1.8 1.8 0 0 0 .9-1.56V12" />
+                        <path d="M12 22V12" />
+                        <path d="M12 12 3.5 7.1" />
+                        <path d="M12 12h10" />
+                        <path d="M18 3v6" />
+                        <path d="M15 6h6" />
+                    </svg>
+                ),
+                "zap": (
+                    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                    </svg>
+                ),
+                "layers": (
+                    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polygon points="12 2 2 7 12 12 22 7 12 2" />
+                        <polyline points="2 17 12 22 22 17" />
+                        <polyline points="2 12 12 17 22 12" />
+                    </svg>
+                ),
+                "file-json": (
+                    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+                        <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+                        <path d="M10 12a1 1 0 0 0-1 1v1a1 1 0 0 1-1 1 1 1 0 0 1 1 1v1a1 1 0 0 0 1 1" />
+                        <path d="M14 12a1 1 0 0 1 1 1v1a1 1 0 0 0 1 1 1 1 0 0 0-1 1v1a1 1 0 0 1-1 1" />
+                    </svg>
+                ),
+                "settings": (
+                    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+                        <circle cx="12" cy="12" r="3" />
+                    </svg>
+                ),
+                "check-circle": (
+                    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                        <polyline points="22 4 12 14.01 9 11.01" />
+                    </svg>
+                ),
+                "alert-triangle": (
+                    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+                        <line x1="12" y1="9" x2="12" y2="13" />
+                        <line x1="12" y1="17" x2="12.01" y2="17" />
+                    </svg>
+                ),
+                "info": (
+                    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="16" x2="12" y2="12" />
+                        <line x1="12" y1="8" x2="12.01" y2="8" />
+                    </svg>
+                ),
+                "receipt": (
+                    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z" />
+                        <path d="M16 8H8" />
+                        <path d="M16 12H8" />
+                        <path d="M13 16H8" />
+                    </svg>
+                ),
+                "calendar": (
+                    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                        <line x1="16" y1="2" x2="16" y2="6" />
+                        <line x1="8" y1="2" x2="8" y2="6" />
+                        <line x1="3" y1="10" x2="21" y2="10" />
+                    </svg>
+                ),
+                "play": (
+                    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polygon points="5 3 19 12 5 21 5 3" />
+                    </svg>
+                ),
+                "pause": (
+                    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="6" y="4" width="4" height="16" />
+                        <rect x="14" y="4" width="4" height="16" />
+                    </svg>
+                ),
+                "trash": (
+                    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6" />
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                    </svg>
+                ),
+                "check-square": (
+                    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="9 11 12 14 22 4" />
+                        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                    </svg>
+                ),
+                "copy": (
+                    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                    </svg>
+                ),
+                "send": (
+                    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="22" y1="2" x2="11" y2="13" />
+                        <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                    </svg>
+                ),
+                "cpu": (
+                    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="4" y="4" width="16" height="16" rx="2" />
+                        <rect x="9" y="9" width="6" height="6" />
+                        <path d="M9 1v3" />
+                        <path d="M15 1v3" />
+                        <path d="M9 20v3" />
+                        <path d="M15 20v3" />
+                        <path d="M20 9h3" />
+                        <path d="M20 15h3" />
+                        <path d="M1 9h3" />
+                        <path d="M1 15h3" />
+                    </svg>
+                ),
+                "terminal": (
+                    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="4 17 10 11 4 5" />
+                        <line x1="12" y1="19" x2="20" y2="19" />
+                    </svg>
+                ),
+                "refresh-cw": (
+                    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="23 4 23 10 17 10" />
+                        <polyline points="1 20 1 14 7 14" />
+                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                    </svg>
+                ),
+                "chevron-right-square": (
+                    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2" />
+                        <polyline points="10 8 14 12 10 16" />
+                    </svg>
+                ),
+                "sliders-horizontal": (
+                    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="4" y1="21" x2="4" y2="14" />
+                        <line x1="4" y1="10" x2="4" y2="3" />
+                        <line x1="12" y1="21" x2="12" y2="12" />
+                        <line x1="12" y1="8" x2="12" y2="3" />
+                        <line x1="20" y1="21" x2="20" y2="16" />
+                        <line x1="20" y1="12" x2="20" y2="3" />
+                        <line x1="1" y1="14" x2="7" y2="14" />
+                        <line x1="9" y1="8" x2="15" y2="8" />
+                        <line x1="17" y1="16" x2="23" y2="16" />
+                    </svg>
+                ),
+                "shield-check": (
+                    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                        <polyline points="9 11 11 13 15 9" />
+                    </svg>
+                ),
+                "key": (
+                    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="m21 2-2 2" />
+                        <circle cx="7.5" cy="16.5" r="4.5" />
+                        <path d="m11 13 2 2 4-4 2 2 1.5-1.5L17.5 9 14 12.5z" />
+                    </svg>
+                ),
+                "database": (
+                    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <ellipse cx="12" cy="5" rx="9" ry="3" />
+                        <path d="M3 5V19A9 3 0 0 0 21 19V5" />
+                        <path d="M3 12A9 3 0 0 0 21 12" />
+                    </svg>
+                ),
+                "loader": (
+                    <svg className={`${className} animate-spin`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="12" y1="2" x2="12" y2="6" />
+                        <line x1="12" y1="18" x2="12" y2="22" />
+                        <line x1="4.93" y1="4.93" x2="7.76" y2="7.76" />
+                        <line x1="16.24" y1="16.24" x2="19.07" y2="19.07" />
+                        <line x1="2" y1="12" x2="6" y2="12" />
+                        <line x1="18" y1="12" x2="22" y2="12" />
+                        <line x1="4.93" y1="19.07" x2="7.76" y2="16.24" />
+                        <line x1="16.24" y1="7.76" x2="19.07" y2="4.93" />
+                    </svg>
+                )
+            };
+
+            return icons[name] || null;
+        }
+
+        // Helper to parse dates in various formats (Vietnam standard e.g. 12/05/2026 to ISO YYYY-MM-DD)
+        const parseDateInput = (str) => {
+            if (!str) return '';
+            str = str.trim();
+            // Match DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY
+            const dmyRegex = /^(\d{1,2})[\/\.-](\d{1,2})[\/\.-](\d{4})$/;
+            const matchDmy = str.match(dmyRegex);
+            if (matchDmy) {
+                const day = matchDmy[1].padStart(2, '0');
+                const month = matchDmy[2].padStart(2, '0');
+                const year = matchDmy[3];
+                return `${year}-${month}-${day}`;
+            }
+            // Match YYYY/MM/DD or YYYY-MM-DD
+            const ymdRegex = /^(\d{4})[\/\.-](\d{1,2})[\/\.-](\d{1,2})$/;
+            const matchYmd = str.match(ymdRegex);
+            if (matchYmd) {
+                const year = matchYmd[1];
+                const month = matchYmd[2].padStart(2, '0');
+                const day = matchYmd[3].padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            }
+            return str;
+        };
+
+        function App() {
+            // Configuration States
+            const [baseUrl, setBaseUrl] = useState('https://api-stg.dcorp.com.vn/sh2/api');
+            const [orgId, setOrgId] = useState('765');
+            const [version, setVersion] = useState('7.7.203');
+            const [lang, setLang] = useState('vi');
+            const [apiToken, setApiToken] = useState('');
+            const [customHeadersText, setCustomHeadersText] = useState(
+                `accept: application/json\naccept-language: en,vi;q=0.9,en-US;q=0.8\norigin: https://stg-skysh.dcorp.com.vn\nuser-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36`
+            );
+            const [useCorsProxy, setUseCorsProxy] = useState(false);
+            const [corsProxyUrl, setCorsProxyUrl] = useState('https://cors-anywhere.herokuapp.com/');
+
+            // Active Navigation Tab
+            const [activeTab, setActiveTab] = useState('batch'); // default to 'batch' (as requested) | 'automation' | 'manual-parser' | 'settings' | 'update-gr'
+
+            // --- SINGLE MODE STATES ---
+            const [invoiceDate, setInvoiceDate] = useState('2026-05-28');
+            const [poNumberInput, setPoNumberInput] = useState('PO-STG0004078');
+            const [storeId, setStoreId] = useState('3354');
+            const [stockId, setStockId] = useState('');
+            const [stocksList, setStocksList] = useState([]);
+            const [isLoadingStocks, setIsLoadingStocks] = useState(false);
+            const [movementTypeId, setMovementTypeId] = useState('5');
+            const [inputType, setInputType] = useState('22');
+            const [notes, setNotes] = useState('');
+            const [currentStep, setCurrentStep] = useState(0);
+            const [stepLogs, setStepLogs] = useState([]);
+            const [foundPoId, setFoundPoId] = useState(null);
+            const [poDetailRaw, setPoDetailRaw] = useState(null);
+            const [generatedPayload, setGeneratedPayload] = useState(null);
+            const [responseResult, setResponseResult] = useState(null);
+
+            // --- BATCH MODE STATES ---
+            const [batchInputText, setBatchInputText] = useState(
+                `PO-STG0004078\t12/05/2026\nPO-STG0004078\t13/05/2026`
+            );
+            const [batchTasks, setBatchTasks] = useState([]);
+            const [isBatchRunning, setIsBatchRunning] = useState(false);
+            const [batchDelay, setBatchDelay] = useState(1000); // 1s delay default
+            const [selectedBatchTaskIndex, setSelectedBatchTaskIndex] = useState(null);
+            const batchRunningRef = useRef(false);
+
+            // Manual Mode state
+            const [manualPoJson, setManualPoJson] = useState('');
+            const [manualResultJson, setManualResultJson] = useState('');
+
+            // --- UPDATE GR BATCH STATES ---
+            const [updateGrBatchText, setUpdateGrBatchText] = useState('148356\t12/05/2026\n148357\t13/05/2026');
+            const [updateGrTasks, setUpdateGrTasks] = useState([]);
+            const [isUpdateGrBatchRunning, setIsUpdateGrBatchRunning] = useState(false);
+            const [updateGrDelay, setUpdateGrDelay] = useState(1000);
+            const [selectedUpdateGrTaskIndex, setSelectedUpdateGrTaskIndex] = useState(null);
+            const updateGrRunningRef = useRef(false);
+
+            const addLog = (msg, type = 'info') => {
+                const time = new Date().toLocaleTimeString();
+                setStepLogs(prev => [...prev, { timestamp: time, message: msg, type }]);
+            };
+
+            const handleParseUpdateGrBatch = () => {
+                if (!updateGrBatchText.trim()) {
+                    showNotify("Vui lòng nhập danh sách dữ liệu!", "error");
+                    return;
+                }
+                const lines = updateGrBatchText.split('\n');
+                const parsedTasks = [];
+
+                lines.forEach((line, index) => {
+                    if (!line.trim()) return;
+                    const parts = line.split(/\t|,|\s{2,}/);
+                    const grId = parts[0] ? parts[0].trim() : '';
+                    let rawDate = parts[1] ? parts[1].trim() : '';
+                    
+                    if (!rawDate) {
+                        const today = new Date();
+                        rawDate = today.toLocaleDateString('vi-VN');
+                    }
+                    
+                    const normalizedDate = parseDateInput(rawDate);
+
+                    if (grId) {
+                        parsedTasks.push({
+                            id: index + 1,
+                            grId: grId,
+                            docDate: normalizedDate,
+                            originalDateText: rawDate,
+                            status: 'pending',
+                            progressStep: 'Sẵn sàng',
+                            message: '',
+                            payload: null,
+                            result: null
+                        });
+                    }
+                });
+
+                if (parsedTasks.length > 0) {
+                    setUpdateGrTasks(parsedTasks);
+                    setSelectedUpdateGrTaskIndex(0);
+                    showNotify(`Đã phân tích ${parsedTasks.length} GR cần cập nhật!`, "success");
+                } else {
+                    showNotify("Không phát hiện dữ liệu hợp lệ.", "error");
+                }
+            };
+
+            const stopUpdateGrBatch = () => {
+                updateGrRunningRef.current = false;
+                setIsUpdateGrBatchRunning(false);
+                showNotify("Đã yêu cầu dừng xử lý.", "info");
+            };
+
+            const runUpdateGrBatch = async () => {
+                if (updateGrTasks.length === 0) {
+                    showNotify("Vui lòng nạp danh sách GR trước!", "error");
+                    return;
+                }
+                if (isUpdateGrBatchRunning) return;
+
+                const headers = parseHeaders();
+                setIsUpdateGrBatchRunning(true);
+                updateGrRunningRef.current = true;
+
+                const tasksCopy = [...updateGrTasks];
+
+                for (let i = 0; i < tasksCopy.length; i++) {
+                    if (!updateGrRunningRef.current) break;
+                    if (tasksCopy[i].status === 'success') continue;
+
+                    tasksCopy[i].status = 'processing';
+                    tasksCopy[i].progressStep = 'Đang tải GR...';
+                    setUpdateGrTasks([...tasksCopy]);
+                    setSelectedUpdateGrTaskIndex(i);
+
+                    try {
+                        const currentTask = tasksCopy[i];
+                        
+                        // 1. GET GR info
+                        const getUrl = `${baseUrl}/goods-receipts/${currentTask.grId}?orgId=${orgId}&lang=${lang}&v=${version}`;
+                        const getRes = await fetch(getProxyUrl(getUrl), { method: 'GET', headers });
+                        if (!getRes.ok) throw new Error(`Lỗi khi lấy thông tin GR (Status: ${getRes.status})`);
+                        
+                        const getJson = await getRes.json();
+                        if (getJson.success === false) throw new Error(`Lỗi từ API: ${getJson.message}`);
+                        
+                        const grData = getJson.data || getJson;
+                        if (!grData || !grData.id) throw new Error(`Không tìm thấy dữ liệu Phiếu Nhập`);
+
+                        tasksCopy[i].progressStep = 'Đang cập nhật...';
+                        setUpdateGrTasks([...tasksCopy]);
+
+                        // 2. Modify docDate
+                        const updatedPayload = {
+                            ...grData,
+                            docDate: currentTask.docDate
+                        };
+                        currentTask.payload = updatedPayload;
+
+                        // 3. PUT updated GR
+                        const putUrl = `${baseUrl}/goods-receipts?orgId=${orgId}&lang=${lang}&v=${version}`;
+                        const putRes = await fetch(getProxyUrl(putUrl), {
+                            method: 'PUT',
+                            headers: { ...headers, 'content-type': 'application/json' },
+                            body: JSON.stringify(updatedPayload)
+                        });
+
+                        let putJson;
+                        try { putJson = await putRes.json(); } catch(e) { putJson = { success: putRes.ok }; }
+                        currentTask.result = putJson;
+
+                        if (putRes.ok && putJson.success !== false) {
+                            tasksCopy[i].status = 'success';
+                            tasksCopy[i].progressStep = 'Hoàn thành!';
+                            tasksCopy[i].message = `Cập nhật thành công docDate thành ${currentTask.docDate}`;
+                        } else {
+                            throw new Error(`Cập nhật thất bại: ${putJson.message || 'Lỗi không xác định'}`);
+                        }
+
+                    } catch (err) {
+                        tasksCopy[i].status = 'failed';
+                        tasksCopy[i].progressStep = 'Lỗi!';
+                        tasksCopy[i].message = err.message;
+                    }
+
+                    setUpdateGrTasks([...tasksCopy]);
+
+                    if (i < tasksCopy.length - 1 && updateGrRunningRef.current) {
+                        await new Promise(resolve => setTimeout(resolve, updateGrDelay));
+                    }
+                }
+
+                setIsUpdateGrBatchRunning(false);
+                updateGrRunningRef.current = false;
+                showNotify("Quá trình cập nhật hoàn tất!", "success");
+            };
+
+            // Notifications
+            const [notification, setNotification] = useState(null);
+            const showNotify = (message, type = 'info') => {
+                setNotification({ message, type });
+                setTimeout(() => setNotification(null), 4000);
+            };
+
+            const parseHeaders = () => {
+                const headers = {};
+                customHeadersText.split('\n').forEach(line => {
+                    const colonIndex = line.indexOf(':');
+                    if (colonIndex > -1) {
+                        const key = line.substring(0, colonIndex).trim();
+                        const value = line.substring(colonIndex + 1).trim();
+                        if (key) headers[key] = value;
+                    }
+                });
+                if (apiToken.trim()) {
+                    let cleanedToken = apiToken.trim();
+                    const actualToken = cleanedToken.toLowerCase().startsWith('bearer ') 
+                        ? cleanedToken.substring(7).trim() 
+                        : cleanedToken;
+                    headers['Authorization'] = `Bearer ${actualToken}`;
+                    headers['token'] = actualToken;
+                }
+                return headers;
+            };
+
+            const getProxyUrl = (url) => {
+                if (useCorsProxy) {
+                    return `${corsProxyUrl.trim()}${url}`;
+                }
+                return url;
+            };
+
+            // Parse Batch Paste Area
+            const handleParseBatchInput = () => {
+                if (!batchInputText.trim()) {
+                    showNotify("Vui lòng nhập danh sách dữ liệu!", "error");
+                    return;
+                }
+                const lines = batchInputText.split('\n');
+                const parsedTasks = [];
+
+                lines.forEach((line, index) => {
+                    if (!line.trim()) return;
+                    // Split by tab, comma, or multiple spaces
+                    const parts = line.split(/\t|,|\s{2,}/);
+                    const po = parts[0] ? parts[0].trim() : '';
+                    let rawDate = parts[1] ? parts[1].trim() : '';
+                    
+                    // Fallback to current date if missing
+                    if (!rawDate) {
+                        const today = new Date();
+                        rawDate = today.toLocaleDateString('vi-VN');
+                    }
+                    
+                    const normalizedDate = parseDateInput(rawDate);
+
+                    if (po) {
+                        parsedTasks.push({
+                            id: index + 1,
+                            poNumber: po,
+                            invoiceDate: normalizedDate,
+                            originalDateText: rawDate,
+                            status: 'pending', // pending, processing, success, failed
+                            progressStep: 'Sẵn sàng',
+                            message: '',
+                            poId: null,
+                            grPayload: null,
+                            grResult: null
+                        });
+                    }
+                });
+
+                if (parsedTasks.length > 0) {
+                    setBatchTasks(parsedTasks);
+                    setSelectedBatchTaskIndex(0);
+                    showNotify(`Đã phân tích thành công ${parsedTasks.length} đơn PO hàng loạt!`, "success");
+                } else {
+                    showNotify("Không phát hiện dữ liệu hợp lệ. Đảm bảo phân tách cột bằng Tab hoặc khoảng cách lớn.", "error");
+                }
+            };
+
+            // Stop/Pause Batch execution
+            const stopBatchExecution = () => {
+                batchRunningRef.current = false;
+                setIsBatchRunning(false);
+                showNotify("Đã yêu cầu tạm dừng tiến trình xử lý hàng loạt.", "info");
+            };
+
+            // Run Batch processing sequentially
+            const runBatchProcessing = async () => {
+                if (batchTasks.length === 0) {
+                    showNotify("Vui lòng nạp danh sách PO trước!", "error");
+                    return;
+                }
+                if (isBatchRunning) return;
+
+                const headers = parseHeaders();
+                if (!headers['Authorization'] && !apiToken.trim()) {
+                    showNotify("Hãy điền Token Xác Thực trước khi chạy hàng loạt!", "error");
+                    setActiveTab('settings');
+                    return;
+                }
+
+                setIsBatchRunning(true);
+                batchRunningRef.current = true;
+
+                // Create a copy of tasks to manipulate and update state live
+                const tasksCopy = [...batchTasks];
+
+                for (let i = 0; i < tasksCopy.length; i++) {
+                    if (!batchRunningRef.current) {
+                        break; // Stop requested
+                    }
+
+                    // Skip tasks already successful
+                    if (tasksCopy[i].status === 'success') {
+                        continue;
+                    }
+
+                    tasksCopy[i].status = 'processing';
+                    tasksCopy[i].progressStep = 'Đang tra cứu PO...';
+                    setBatchTasks([...tasksCopy]);
+                    setSelectedBatchTaskIndex(i);
+
+                    try {
+                        const currentTask = tasksCopy[i];
+
+                        // ---- STEP 1: Search PO ----
+                        const searchUrl = `${baseUrl}/purchase-orders?orgId=${orgId}&search=${encodeURIComponent(currentTask.poNumber)}&orderBy=id%20desc&limit=5&offset=0&lang=${lang}&v=${version}`;
+                        const searchRes = await fetch(getProxyUrl(searchUrl), { method: 'GET', headers });
+
+                        if (!searchRes.ok) {
+                            throw new Error(`[B1] Không tra cứu được PO. Status: ${searchRes.status}`);
+                        }
+
+                        const searchData = await searchRes.json();
+                        if (searchData.success === false) {
+                            throw new Error(`[B1] API tìm PO báo lỗi: ${searchData.message}`);
+                        }
+
+                        let records = [];
+                        if (searchData.data && Array.isArray(searchData.data.records)) {
+                            records = searchData.data.records;
+                        } else if (Array.isArray(searchData.data)) {
+                            records = searchData.data;
+                        } else if (searchData.records && Array.isArray(searchData.records)) {
+                            records = searchData.records;
+                        }
+
+                        const foundPo = records.find(po => po.docNumber === currentTask.poNumber || po.docCode === currentTask.poNumber) || records[0];
+
+                        if (!foundPo || !foundPo.id) {
+                            throw new Error(`[B1] Không tìm thấy PO tương ứng trên hệ thống.`);
+                        }
+
+                        const poId = foundPo.id;
+                        const activeStoreId = foundPo.storeId || 3354;
+                        currentTask.poId = poId;
+
+                        // ---- STEP 2: Fetch Details ----
+                        tasksCopy[i].progressStep = 'Đang tải chi tiết sản phẩm...';
+                        setBatchTasks([...tasksCopy]);
+
+                        const detailsUrl = `${baseUrl}/purchase-orders/${poId}?orgId=${orgId}&lang=${lang}&v=${version}`;
+                        const detailsRes = await fetch(getProxyUrl(detailsUrl), { method: 'GET', headers });
+
+                        if (!detailsRes.ok) {
+                            throw new Error(`[B2] Không tải được chi tiết PO ID: ${poId}`);
+                        }
+
+                        const poDetail = await detailsRes.json();
+                        const poData = poDetail.data || poDetail;
+
+                        // ---- STEP 3: Fetch dynamic stocks ----
+                        tasksCopy[i].progressStep = 'Đang quét kho cửa hàng...';
+                        setBatchTasks([...tasksCopy]);
+
+                        const stocksUrl = `${baseUrl}/stocks?orgId=${orgId}&storeId=${activeStoreId}&orderBy=id%20desc&limit=1000&offset=0&lang=${lang}&v=${version}`;
+                        const stocksRes = await fetch(getProxyUrl(stocksUrl), { method: 'GET', headers });
+
+                        let resolvedStockId = 2; // mặc định nếu lỗi
+                        if (stocksRes.ok) {
+                            const stocksData = await stocksRes.json();
+                            const recs = stocksData.data?.records || stocksData.data || stocksData || [];
+                            if (recs.length > 0) {
+                                resolvedStockId = recs[0].id;
+                            }
+                        }
+
+                        // Map Items
+                        const poItems = poData.items || [];
+                        const mappedItems = poItems.map(item => ({
+                            id: item.id,
+                            productId: item.productId,
+                            productName: item.productName || item.product?.name || "Sản phẩm",
+                            unitId: item.unitId || item.unit?.id || 18,
+                            unitName: item.unitName || item.unit?.name || 'Đơn vị',
+                            quantity: item.quantity || item.orderQuantity || 0,
+                            sku: item.sku || item.product?.sku || '',
+                            orderQuantity: item.orderQuantity || item.quantity || 0
+                        }));
+
+                        // Build Payload
+                        const payload = {
+                            organizationId: parseInt(orgId),
+                            storeId: activeStoreId,
+                            movementTypeId: parseInt(movementTypeId),
+                            docDate: currentTask.invoiceDate,
+                            docNumber: "",
+                            supplierId: poData.supplierId || 187,
+                            stockId: parseInt(resolvedStockId),
+                            docStatus: 1,
+                            notes: `Hàng loạt: Tạo tự động cho PO ${currentTask.poNumber}`,
+                            items: mappedItems,
+                            docRefs: [
+                                {
+                                    docId: poId,
+                                    docType: "PurchaseOrder",
+                                    docTypeId: 22,
+                                    docNumber: poData.docNumber || currentTask.poNumber
+                                }
+                            ],
+                            inputType: parseInt(inputType),
+                            idempotencyKey: crypto.randomUUID()
+                        };
+
+                        currentTask.grPayload = payload;
+
+                        // ---- STEP 4: Submit Goods Receipt ----
+                        tasksCopy[i].progressStep = 'Đang nộp phiếu nhập hàng...';
+                        setBatchTasks([...tasksCopy]);
+
+                        const postUrl = `${baseUrl}/goods-receipts?orgId=${orgId}&lang=${lang}&v=${version}`;
+                        const response = await fetch(getProxyUrl(postUrl), {
+                            method: 'POST',
+                            headers: {
+                                ...headers,
+                                'content-type': 'application/json'
+                            },
+                            body: JSON.stringify(payload)
+                        });
+
+                        const resText = await response.text();
+                        let resJson;
+                        try { resJson = JSON.parse(resText); } catch (e) { resJson = resText; }
+
+                        currentTask.grResult = resJson;
+
+                        if (response.ok && resJson.success !== false) {
+                            tasksCopy[i].status = 'success';
+                            tasksCopy[i].progressStep = 'Hoàn thành!';
+                            tasksCopy[i].message = `Tạo GR thành công! (ID: ${resJson.data?.id || 'OK'})`;
+                        } else {
+                            throw new Error(`[B4] Server từ chối: ${resJson.message || 'Lỗi không xác định'}`);
+                        }
+
+                    } catch (err) {
+                        tasksCopy[i].status = 'failed';
+                        tasksCopy[i].progressStep = 'Lỗi!';
+                        tasksCopy[i].message = err.message;
+                    }
+
+                    setBatchTasks([...tasksCopy]);
+
+                    // Delay between iterations to prevent server hammering
+                    if (i < tasksCopy.length - 1 && batchRunningRef.current) {
+                        await new Promise(resolve => setTimeout(resolve, batchDelay));
+                    }
+                }
+
+                setIsBatchRunning(false);
+                batchRunningRef.current = false;
+                showNotify("Quá trình xử lý hàng loạt hoàn tất!", "success");
+            };
+
+
+            // --- SINGLE MODE API LOGIC ---
+            const fetchStocksByStore = async (targetStoreId, headersObj) => {
+                setIsLoadingStocks(true);
+                addLog(`[Bước 2.5] Đang tải danh sách Kho của cửa hàng ${targetStoreId}...`, 'info');
+                try {
+                    const stocksUrl = `${baseUrl}/stocks?orgId=${orgId}&storeId=${targetStoreId}&orderBy=id%20desc&limit=1000&offset=0&lang=${lang}&v=${version}`;
+                    const stocksRes = await fetch(getProxyUrl(stocksUrl), {
+                        method: 'GET',
+                        headers: headersObj || parseHeaders()
+                    });
+
+                    if (stocksRes.ok) {
+                        const stocksData = await stocksRes.json();
+                        let fetchedStocks = [];
+                        
+                        if (stocksData.data && Array.isArray(stocksData.data.records)) {
+                            fetchedStocks = stocksData.data.records;
+                        } else if (Array.isArray(stocksData.data)) {
+                            fetchedStocks = stocksData.data;
+                        }
+
+                        setStocksList(fetchedStocks);
+                        
+                        if (fetchedStocks.length > 0) {
+                            const defaultStockId = fetchedStocks[0].id.toString();
+                            setStockId(defaultStockId);
+                            addLog(`Tải kho thành công! Tìm thấy ${fetchedStocks.length} kho. Kho mặc định: "${fetchedStocks[0].name}" (ID: ${defaultStockId})`, 'success');
+                            return defaultStockId;
+                        } else {
+                            addLog(`Không tìm thấy kho cho Store ${targetStoreId}.`, 'warning');
+                        }
+                    }
+                } catch (err) {
+                    addLog(`Gặp lỗi khi tải danh sách kho: ${err.message}`, 'error');
+                } finally {
+                    setIsLoadingStocks(false);
+                }
+                return '';
+            };
+
+            const runSingleAutomation = async () => {
+                setStepLogs([]);
+                setResponseResult(null);
+                setFoundPoId(null);
+                setPoDetailRaw(null);
+                setGeneratedPayload(null);
+                setCurrentStep(1);
+
+                addLog(`Bắt đầu xử lý đơn lẻ cho PO: ${poNumberInput}`, 'info');
+
+                try {
+                    const headers = parseHeaders();
+                    addLog(`[Bước 1] Tra cứu mã PO...`, 'info');
+                    const searchUrl = `${baseUrl}/purchase-orders?orgId=${orgId}&search=${encodeURIComponent(poNumberInput)}&orderBy=id%20desc&limit=5&offset=0&lang=${lang}&v=${version}`;
+                    const searchRes = await fetch(getProxyUrl(searchUrl), { method: 'GET', headers });
+
+                    if (!searchRes.ok) throw new Error(`Tra cứu PO thất bại.`);
+                    const searchData = await searchRes.json();
+                    
+                    let records = [];
+                    if (searchData.data && Array.isArray(searchData.data.records)) {
+                        records = searchData.data.records;
+                    }
+
+                    const finalPo = records.find(po => po.docNumber === poNumberInput || po.docCode === poNumberInput) || records[0];
+                    if (!finalPo || !finalPo.id) throw new Error(`Không tìm thấy PO.`);
+
+                    const poId = finalPo.id;
+                    setFoundPoId(poId);
+                    setStoreId(finalPo.storeId?.toString() || storeId);
+
+                    setCurrentStep(2);
+                    addLog(`[Bước 2] Tải chi tiết PO ID ${poId}...`, 'info');
+                    const detailsUrl = `${baseUrl}/purchase-orders/${poId}?orgId=${orgId}&lang=${lang}&v=${version}`;
+                    const detailsRes = await fetch(getProxyUrl(detailsUrl), { method: 'GET', headers });
+                    const poDetail = await detailsRes.json();
+                    setPoDetailRaw(poDetail);
+
+                    const resolvedStock = await fetchStocksByStore(finalPo.storeId || storeId, headers);
+
+                    setCurrentStep(3);
+                    const poData = poDetail.data || poDetail;
+                    const mappedItems = (poData.items || []).map(item => ({
+                        id: item.id,
+                        productId: item.productId,
+                        productName: item.productName || item.product?.name || "Sản phẩm",
+                        unitId: item.unitId || item.unit?.id || 18,
+                        unitName: item.unitName || item.unit?.name || 'Đơn vị',
+                        quantity: item.quantity || item.orderQuantity || 0,
+                        sku: item.sku || item.product?.sku || '',
+                        orderQuantity: item.orderQuantity || item.quantity || 0
+                    }));
+
+                    const autoPayload = {
+                        organizationId: parseInt(orgId),
+                        storeId: poData.storeId || parseInt(storeId),
+                        movementTypeId: parseInt(movementTypeId),
+                        docDate: invoiceDate,
+                        docNumber: "",
+                        supplierId: poData.supplierId || 187,
+                        stockId: parseInt(resolvedStock || stockId || "2"),
+                        docStatus: 1,
+                        notes: notes || poData.notes || "",
+                        items: mappedItems,
+                        docRefs: [{ docId: poId, docType: "PurchaseOrder", docTypeId: 22, docNumber: poData.docNumber || poNumberInput }],
+                        inputType: parseInt(inputType),
+                        idempotencyKey: crypto.randomUUID()
+                    };
+
+                    setGeneratedPayload(autoPayload);
+                    addLog(`Tạo Payload thành công! Hãy duyệt và gửi lên hệ thống.`, 'success');
+                } catch (err) {
+                    addLog(`Lỗi: ${err.message}`, 'error');
+                }
+            };
+
+            const submitSingleGoodsReceipt = async () => {
+                if (!generatedPayload) return;
+                setCurrentStep(4);
+                addLog(`[Bước 4] Gửi POST tạo phiếu nhập hàng...`, 'info');
+                try {
+                    const postUrl = `${baseUrl}/goods-receipts?orgId=${orgId}&lang=${lang}&v=${version}`;
+                    const response = await fetch(getProxyUrl(postUrl), {
+                        method: 'POST',
+                        headers: { ...parseHeaders(), 'content-type': 'application/json' },
+                        body: JSON.stringify(generatedPayload)
+                    });
+                    const resJson = await response.json();
+                    setResponseResult({ status: response.status, data: resJson });
+                    if (response.ok && resJson.success !== false) {
+                        addLog(`Tạo thành công phiếu nhập hàng!`, 'success');
+                    } else {
+                        addLog(`Tạo thất bại: ${resJson.message}`, 'error');
+                    }
+                } catch (e) {
+                    addLog(`Lỗi kết nối: ${e.message}`, 'error');
+                } finally {
+                    setCurrentStep(3);
+                }
+            };
+
+            const parseManualPo = () => {
+                try {
+                    const parsed = JSON.parse(manualPoJson);
+                    const poData = parsed.data || parsed;
+                    const manualPayload = {
+                        organizationId: parseInt(orgId),
+                        storeId: poData.storeId || 3354,
+                        movementTypeId: parseInt(movementTypeId),
+                        docDate: invoiceDate,
+                        docNumber: "",
+                        supplierId: poData.supplierId || 187,
+                        stockId: parseInt(stockId || "2"),
+                        docStatus: 1,
+                        notes: notes || poData.notes || "",
+                        items: (poData.items || []).map(item => ({
+                            id: item.id || 0,
+                            productId: item.productId,
+                            productName: item.productName || "Sản phẩm",
+                            unitId: item.unitId || 18,
+                            unitName: item.unitName || "Đơn vị",
+                            quantity: item.quantity || item.orderQuantity || 1,
+                            sku: item.sku || "",
+                            orderQuantity: item.orderQuantity || item.quantity || 1
+                        })),
+                        docRefs: [{ docId: poData.id || 0, docType: "PurchaseOrder", docTypeId: 22, docNumber: poData.docNumber || poNumberInput }],
+                        inputType: parseInt(inputType),
+                        idempotencyKey: crypto.randomUUID()
+                    };
+                    setManualResultJson(JSON.stringify(manualPayload, null, 2));
+                } catch (e) {
+                    showNotify("JSON không hợp lệ!", "error");
+                }
+            };
+
+            // Calculate stats for Batch Mode
+            const batchStats = {
+                total: batchTasks.length,
+                pending: batchTasks.filter(t => t.status === 'pending').length,
+                processing: batchTasks.filter(t => t.status === 'processing').length,
+                success: batchTasks.filter(t => t.status === 'success').length,
+                failed: batchTasks.filter(t => t.status === 'failed').length,
+            };
+
+
+            const updateGrStats = {
+                total: updateGrTasks.length,
+                pending: updateGrTasks.filter(t => t.status === 'pending').length,
+                processing: updateGrTasks.filter(t => t.status === 'processing').length,
+                success: updateGrTasks.filter(t => t.status === 'success').length,
+                failed: updateGrTasks.filter(t => t.status === 'failed').length,
+            };
+
+            return (
+                <div class="min-h-screen flex flex-col bg-slate-900 text-slate-100 selection:bg-indigo-500 selection:text-white">
+                    {/* Header */}
+                    <header class="bg-slate-950 border-b border-slate-800 shrink-0 px-6 py-4 flex items-center justify-between shadow-lg">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-bold shadow-indigo-500/20 shadow-md">
+                                <Icon name="package-plus" className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-2">
+                                    DCorp SH2 <span class="text-xs bg-indigo-500/20 text-indigo-400 px-2.5 py-0.5 rounded-full font-medium border border-indigo-500/30">Auto PO Receiver</span>
+                                </h1>
+                                <p class="text-xs text-slate-400">Chuyển đổi Đơn hàng (PO) thành Phiếu Nhập hàng (Goods Receipt) hàng loạt</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <button 
+                                onClick={() => setActiveTab('batch')} 
+                                class={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 ${activeTab === 'batch' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/10' : 'text-slate-300 hover:bg-slate-800'}`}
+                            >
+                                <Icon name="layers" className="w-4 h-4" /> Nhận Hàng Loạt (Batch)
+                            </button>
+                            <button 
+                                onClick={() => setActiveTab('automation')} 
+                                class={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 ${activeTab === 'automation' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/10' : 'text-slate-300 hover:bg-slate-800'}`}
+                            >
+                                <Icon name="zap" className="w-4 h-4" /> Nhận Đơn Lẻ (Single)
+                            </button>
+                            <button 
+                                onClick={() => setActiveTab('manual-parser')} 
+                                class={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 ${activeTab === 'manual-parser' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/10' : 'text-slate-300 hover:bg-slate-800'}`}
+                            >
+                                <Icon name="file-json" className="w-4 h-4" /> Chuyển JSON Thủ Công
+                            </button>
+                            <button 
+                                onClick={() => setActiveTab('update-gr')} 
+                                class={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 ${activeTab === 'update-gr' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/10' : 'text-slate-300 hover:bg-slate-800'}`}
+                            >
+                                <Icon name="calendar" className="w-4 h-4" /> Cập nhật GR
+                            </button>
+                            <button 
+                                onClick={() => setActiveTab('settings')} 
+                                class={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 ${activeTab === 'settings' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/10' : 'text-slate-300 hover:bg-slate-800'}`}
+                            >
+                                <Icon name="settings" className="w-4 h-4" /> Cấu Hình Headers / API
+                            </button>
+                        </div>
+                    </header>
+
+                    {/* Notification Toast */}
+                    {notification && (
+                        <div class="fixed top-5 right-5 z-50 animate-bounce">
+                            <div class={`px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-3 text-sm font-medium border ${
+                                notification.type === 'success' 
+                                    ? 'bg-emerald-950/90 text-emerald-300 border-emerald-500/40' 
+                                    : notification.type === 'error'
+                                    ? 'bg-rose-950/90 text-rose-300 border-rose-500/40'
+                                    : 'bg-indigo-950/90 text-indigo-300 border-indigo-500/40'
+                            }`}>
+                                <Icon name={notification.type === 'success' ? 'check-circle' : notification.type === 'error' ? 'alert-triangle' : 'info'} className="w-5 h-5 shrink-0" />
+                                <span>{notification.message}</span>
+                            </div>
+                        </div>
+                    )}
+
+                    <div class="flex-1 flex overflow-hidden">
+                        
+                        {/* Tab: BATCH MODE (NHẬN HÀNG LOẠT) */}
+                        {activeTab === 'batch' && (
+                            <div class="flex-1 flex flex-col xl:flex-row overflow-hidden">
+                                {/* Left column: Data Inputs */}
+                                <div class="w-full xl:w-5/12 bg-slate-900 border-r border-slate-800 p-6 overflow-y-auto space-y-6 flex flex-col justify-between">
+                                    <div class="space-y-6">
+                                        <div class="border-b border-slate-800 pb-3">
+                                            <h2 class="text-base font-semibold text-white flex items-center gap-2">
+                                                <span class="w-6 h-6 rounded-md bg-indigo-500/10 text-indigo-400 flex items-center justify-center text-xs">1</span>
+                                                Dán danh sách PO & Ngày hóa đơn từ Excel
+                                            </h2>
+                                            <p class="text-xs text-slate-400 mt-1">Copy bảng 2 cột từ Excel/Google Sheets (Số PO, Ngày) rồi dán vào đây.</p>
+                                        </div>
+
+                                        <div>
+                                            <textarea
+                                                rows="10"
+                                                value={batchInputText}
+                                                onChange={(e) => setBatchInputText(e.target.value)}
+                                                placeholder="PO-STG0004078&#9;12/05/2026&#10;PO-STG0004079&#9;13/05/2026"
+                                                class="w-full p-4 bg-slate-950 border border-slate-800 rounded-xl font-mono text-xs text-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 custom-scrollbar"
+                                            ></textarea>
+                                            <div class="flex justify-between items-center mt-2">
+                                                <span class="text-[10px] text-slate-500 italic">Mẹo: Cột ngày hỗ trợ định dạng DD/MM/YYYY hoặc YYYY-MM-DD</span>
+                                                <button
+                                                    onClick={handleParseBatchInput}
+                                                    class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-4 py-2 rounded-lg transition-all flex items-center gap-1.5 shadow-md shadow-indigo-600/10"
+                                                >
+                                                    <Icon name="refresh-cw" className="w-3.5 h-3.5" /> Nạp danh sách (Parse)
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div class="border-b border-slate-800 pb-3 pt-2">
+                                            <h2 class="text-base font-semibold text-white flex items-center gap-2">
+                                                <span class="w-6 h-6 rounded-md bg-indigo-500/10 text-indigo-400 flex items-center justify-center text-xs">2</span>
+                                                Tham số thực thi hàng loạt
+                                            </h2>
+                                        </div>
+
+                                        <div class="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label class="block text-xs font-semibold text-slate-400 mb-1">Độ trễ giãn cách (Delay ms)</label>
+                                                <input 
+                                                    type="number" 
+                                                    value={batchDelay}
+                                                    onChange={(e) => setBatchDelay(Math.max(200, parseInt(e.target.value) || 0))}
+                                                    class="block w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-sm text-white font-mono"
+                                                    placeholder="1000"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label class="block text-xs font-semibold text-slate-400 mb-1">Mã Hướng Nhập (Type)</label>
+                                                <input 
+                                                    type="text" 
+                                                    value={inputType} 
+                                                    onChange={(e) => setInputType(e.target.value)}
+                                                    class="block w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-sm text-white font-mono"
+                                                />
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="p-3 bg-slate-950/60 rounded-xl border border-slate-800/80 text-xs text-slate-400 space-y-2">
+                                            <p class="font-semibold text-slate-300">Cơ chế hoạt động Batch:</p>
+                                            <ul class="list-disc pl-4 space-y-1 text-[11px]">
+                                                <li>Hệ thống chạy tuần tự từ trên xuống để đảm bảo an toàn.</li>
+                                                <li>Tự động tra cứu PO ID từ Số PO đã nhập.</li>
+                                                <li>Tự động lấy thông tin cửa hàng & quét kho động (quét Stock ID chuẩn theo cửa hàng) giống hệt thao tác trên UI gốc.</li>
+                                                <li>Nhập hàng loạt sẽ giữ nguyên 100% số lượng sản phẩm từ PO gốc.</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+
+                                    <div class="pt-6 border-t border-slate-800 flex gap-3">
+                                        <button 
+                                            onClick={runBatchProcessing}
+                                            disabled={isBatchRunning || batchTasks.length === 0}
+                                            class="flex-1 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white py-3 px-4 rounded-xl font-bold shadow-lg shadow-indigo-600/25 flex items-center justify-center space-x-2 transition-all disabled:opacity-50 disabled:pointer-events-none"
+                                        >
+                                            <Icon name="play" className="w-5 h-5" />
+                                            <span>CHẠY HÀNG LOẠT</span>
+                                        </button>
+
+                                        {isBatchRunning && (
+                                            <button 
+                                                onClick={stopBatchExecution}
+                                                class="bg-rose-600 hover:bg-rose-500 text-white py-3 px-4 rounded-xl font-bold flex items-center justify-center space-x-2 transition-all"
+                                            >
+                                                <Icon name="pause" className="w-5 h-5" />
+                                                <span>DỪNG</span>
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Right column: Queue & Log View */}
+                                <div class="flex-1 bg-slate-950 flex flex-col overflow-hidden">
+                                    {/* Realtime progress */}
+                                    <div class="bg-slate-900 border-b border-slate-800 p-5">
+                                        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                            <div>
+                                                <h3 class="text-sm font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+                                                    <span class="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse"></span>
+                                                    Tiến độ xử lý hàng loạt
+                                                </h3>
+                                                <p class="text-xs text-slate-400 mt-0.5">Trình chạy tự động các PO được nạp vào hàng đợi</p>
+                                            </div>
+
+                                            <div class="flex items-center gap-2">
+                                                <span class="text-xs bg-slate-800 text-slate-400 px-2.5 py-1 rounded-lg">Tổng: <b>{batchStats.total}</b></span>
+                                                <span class="text-xs bg-indigo-950/40 text-indigo-400 px-2.5 py-1 rounded-lg border border-indigo-500/20">Chạy: <b>{batchStats.processing}</b></span>
+                                                <span class="text-xs bg-emerald-950/40 text-emerald-400 px-2.5 py-1 rounded-lg border border-emerald-500/20">Thành công: <b>{batchStats.success}</b></span>
+                                                <span class="text-xs bg-rose-950/40 text-rose-400 px-2.5 py-1 rounded-lg border border-rose-500/20">Lỗi: <b>{batchStats.failed}</b></span>
+                                            </div>
+                                        </div>
+
+                                        {/* Progress bar */}
+                                        {batchTasks.length > 0 && (
+                                            <div class="w-full bg-slate-950 rounded-full h-2 mt-4 overflow-hidden border border-slate-800">
+                                                <div 
+                                                    class="bg-indigo-500 h-full transition-all duration-300"
+                                                    style={{ width: `${((batchStats.success + batchStats.failed) / batchStats.total) * 100}%` }}
+                                                ></div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Queue table and log viewer splitting */}
+                                    <div class="flex-1 flex flex-col md:flex-row overflow-hidden">
+                                        {/* Queue List */}
+                                        <div class="w-full md:w-7/12 border-r border-slate-800 overflow-y-auto custom-scrollbar">
+                                            <table class="w-full text-left border-collapse">
+                                                <thead>
+                                                    <tr class="border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-950/40 sticky top-0 z-10">
+                                                        <th class="p-3">#</th>
+                                                        <th class="p-3">Mã PO</th>
+                                                        <th class="p-3">Ngày Hóa Đơn</th>
+                                                        <th class="p-3">Tiến trình</th>
+                                                        <th class="p-3 text-right">Trạng thái</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody class="divide-y divide-slate-800/40 text-xs">
+                                                    {batchTasks.length === 0 ? (
+                                                        <tr>
+                                                            <td colSpan="5" class="p-8 text-center text-slate-600">
+                                                                Chưa có dữ liệu nào được nạp. Hãy nhập dữ liệu ở cột trái và nhấn "Nạp danh sách".
+                                                            </td>
+                                                        </tr>
+                                                    ) : (
+                                                        batchTasks.map((task, idx) => (
+                                                            <tr 
+                                                                key={task.id} 
+                                                                onClick={() => setSelectedBatchTaskIndex(idx)}
+                                                                class={`hover:bg-slate-800/20 transition-colors cursor-pointer ${selectedBatchTaskIndex === idx ? 'bg-indigo-950/20 border-l-2 border-indigo-500' : ''}`}
+                                                            >
+                                                                <td class="p-3 text-slate-500 font-mono">{task.id}</td>
+                                                                <td class="p-3 font-semibold text-slate-200">{task.poNumber}</td>
+                                                                <td class="p-3">
+                                                                    <span class="text-slate-300 font-mono">{task.invoiceDate}</span>
+                                                                    {task.originalDateText !== task.invoiceDate && (
+                                                                        <span class="text-[9px] text-slate-500 block">({task.originalDateText})</span>
+                                                                    )}
+                                                                </td>
+                                                                <td class="p-3 text-slate-400 font-mono">{task.progressStep}</td>
+                                                                <td class="p-3 text-right">
+                                                                    <span class={`inline-block px-2 py-0.5 rounded-full font-bold text-[10px] ${
+                                                                        task.status === 'success' ? 'bg-emerald-950 text-emerald-400 border border-emerald-500/20' :
+                                                                        task.status === 'failed' ? 'bg-rose-950 text-rose-400 border border-rose-500/20' :
+                                                                        task.status === 'processing' ? 'bg-indigo-950 text-indigo-400 border border-indigo-500/20' :
+                                                                        'bg-slate-900 text-slate-500'
+                                                                    }`}>
+                                                                        {task.status === 'success' ? 'Thành công' :
+                                                                         task.status === 'failed' ? 'Lỗi' :
+                                                                         task.status === 'processing' ? 'Đang chạy' :
+                                                                         'Chờ xử lý'}
+                                                                    </span>
+                                                                </td>
+                                                            </tr>
+                                                        ))
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
+
+                                        {/* Task Inspect Panel */}
+                                        <div class="flex-1 bg-slate-950/80 p-5 overflow-y-auto custom-scrollbar flex flex-col justify-between">
+                                            {selectedBatchTaskIndex !== null && batchTasks[selectedBatchTaskIndex] ? (
+                                                <div class="space-y-4">
+                                                    <div class="border-b border-slate-800 pb-3">
+                                                        <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Chi tiết hàng đợi #{batchTasks[selectedBatchTaskIndex].id}</h4>
+                                                        <p class="text-sm font-semibold text-white mt-1">PO: {batchTasks[selectedBatchTaskIndex].poNumber}</p>
+                                                    </div>
+
+                                                    <div class="space-y-2">
+                                                        <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Log chi tiết của dòng này:</span>
+                                                        <div class="p-3 rounded-lg bg-slate-900 border border-slate-800/80 text-xs font-mono text-slate-300 min-h-[60px]">
+                                                            {batchTasks[selectedBatchTaskIndex].message || "Không có lỗi nào được ghi nhận."}
+                                                        </div>
+                                                    </div>
+
+                                                    {batchTasks[selectedBatchTaskIndex].grPayload && (
+                                                        <div class="space-y-2">
+                                                            <div class="flex justify-between items-center">
+                                                                <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">JSON Payload gửi đi:</span>
+                                                                <button 
+                                                                    onClick={() => copyToClipboard(JSON.stringify(batchTasks[selectedBatchTaskIndex].grPayload, null, 2))}
+                                                                    class="text-[10px] text-indigo-400 hover:underline"
+                                                                >
+                                                                    Copy Payload
+                                                                </button>
+                                                            </div>
+                                                            <pre class="p-3 bg-slate-900 rounded-lg border border-slate-800 text-[10px] text-emerald-400 overflow-x-auto max-h-[160px] custom-scrollbar">
+                                                                {JSON.stringify(batchTasks[selectedBatchTaskIndex].grPayload, null, 2)}
+                                                            </pre>
+                                                        </div>
+                                                    )}
+
+                                                    {batchTasks[selectedBatchTaskIndex].grResult && (
+                                                        <div class="space-y-2">
+                                                            <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Phản hồi của DCorp:</span>
+                                                            <pre class="p-3 bg-slate-900 rounded-lg border border-slate-800 text-[10px] text-indigo-300 overflow-x-auto max-h-[160px] custom-scrollbar">
+                                                                {JSON.stringify(batchTasks[selectedBatchTaskIndex].grResult, null, 2)}
+                                                            </pre>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <div class="h-full flex flex-col items-center justify-center text-slate-600 text-center">
+                                                    <Icon name="terminal" className="w-8 h-8 mb-2 opacity-40" />
+                                                    <p class="text-xs">Chọn 1 dòng trong danh sách bên trái để kiểm tra chi tiết tham số, log lỗi và dữ liệu API.</p>
+                                                </div>
+                                            )}
+
+                                            {/* Quick Actions */}
+                                            {batchTasks.length > 0 && (
+                                                <div class="border-t border-slate-800 pt-4 mt-4 flex justify-between">
+                                                    <button 
+                                                        onClick={() => {
+                                                            setBatchTasks([]);
+                                                            setSelectedBatchTaskIndex(null);
+                                                        }}
+                                                        disabled={isBatchRunning}
+                                                        class="text-xs bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 px-3 py-1.5 rounded-lg flex items-center gap-1 transition-all disabled:opacity-50"
+                                                    >
+                                                        <Icon name="trash" className="w-3.5 h-3.5" /> Xóa hàng đợi
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+
+                        {/* Tab: SINGLE RECEIVER (NHẬN ĐƠN LẺ TRƯỚC ĐÂY) */}
+                        {activeTab === 'automation' && (
+                            <div class="flex-1 flex flex-col lg:flex-row overflow-hidden">
+                                {/* Left Side: Input Control Form */}
+                                <div class="w-full lg:w-1/3 bg-slate-900 border-r border-slate-800 p-6 overflow-y-auto space-y-6 flex flex-col justify-between">
+                                    <div class="space-y-6">
+                                        <div class="border-b border-slate-800 pb-4">
+                                            <h2 class="text-base font-semibold text-white flex items-center gap-2">
+                                                <span class="w-6 h-6 rounded-md bg-indigo-500/10 text-indigo-400 flex items-center justify-center text-xs">1</span>
+                                                Thông tin Nhận hàng
+                                            </h2>
+                                            <p class="text-xs text-slate-400 mt-1">Nhập PO và ngày hóa đơn để tiến hành nhận hàng.</p>
+                                        </div>
+
+                                        <div class="space-y-4">
+                                            <div>
+                                                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Mã PO Đơn Hàng (HDDT PO)</label>
+                                                <div class="relative rounded-lg shadow-sm">
+                                                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
+                                                        <Icon name="receipt" className="w-4 h-4" />
+                                                    </div>
+                                                    <input 
+                                                        type="text" 
+                                                        value={poNumberInput} 
+                                                        onChange={(e) => setPoNumberInput(e.target.value)}
+                                                        placeholder="Ví dụ: PO-STG0004078"
+                                                        class="block w-full pl-10 pr-3 py-2.5 bg-slate-950 border border-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm font-semibold text-white tracking-wide"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Ngày hóa đơn (Invoice Date)</label>
+                                                <div class="relative rounded-lg shadow-sm">
+                                                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
+                                                        <Icon name="calendar" className="w-4 h-4" />
+                                                    </div>
+                                                    <input 
+                                                        type="date" 
+                                                        value={invoiceDate} 
+                                                        onChange={(e) => setInvoiceDate(e.target.value)}
+                                                        class="block w-full pl-10 pr-3 py-2.5 bg-slate-950 border border-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm font-semibold text-white"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="border-b border-slate-800 pb-4 pt-2">
+                                            <h2 class="text-base font-semibold text-white flex items-center gap-2">
+                                                <span class="w-6 h-6 rounded-md bg-indigo-500/10 text-indigo-400 flex items-center justify-center text-xs">2</span>
+                                                Dữ liệu cấu hình & Kho động
+                                            </h2>
+                                            <p class="text-xs text-slate-400 mt-1">Cửa hàng và Kho sẽ tự động được đồng bộ và chọn từ hệ thống.</p>
+                                        </div>
+
+                                        <div class="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label class="block text-xs font-semibold text-slate-400 mb-1">Mã Cửa Hàng (Store ID)</label>
+                                                <input 
+                                                    type="text" 
+                                                    value={storeId} 
+                                                    onChange={(e) => setStoreId(e.target.value)}
+                                                    class="block w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-sm text-white font-mono"
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <div class="flex justify-between items-center mb-1">
+                                                    <label class="block text-xs font-semibold text-slate-400">Chọn Kho (Stock ID)</label>
+                                                    <button 
+                                                        onClick={() => fetchStocksByStore(storeId)} 
+                                                        disabled={isLoadingStocks}
+                                                        class="text-[9px] text-indigo-400 hover:text-indigo-300 flex items-center gap-0.5"
+                                                    >
+                                                        <Icon name="refresh-cw" className={`w-2.5 h-2.5 ${isLoadingStocks ? 'animate-spin' : ''}`} /> Tải Kho
+                                                    </button>
+                                                </div>
+                                                
+                                                {stocksList.length > 0 ? (
+                                                    <select 
+                                                        value={stockId}
+                                                        onChange={(e) => {
+                                                            const val = e.target.value;
+                                                            setStockId(val);
+                                                            if (generatedPayload) {
+                                                                setGeneratedPayload(prev => ({ ...prev, stockId: parseInt(val) }));
+                                                            }
+                                                        }}
+                                                        class="block w-full px-2.5 py-2 bg-slate-950 border border-slate-800 rounded-lg text-xs text-white font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                                    >
+                                                        {stocksList.map(stk => (
+                                                            <option key={stk.id} value={stk.id}>
+                                                                {stk.name} (ID: {stk.id})
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                ) : (
+                                                    <input 
+                                                        type="text" 
+                                                        value={stockId} 
+                                                        onChange={(e) => {
+                                                            const val = e.target.value;
+                                                            setStockId(val);
+                                                            if (generatedPayload) {
+                                                                setGeneratedPayload(prev => ({ ...prev, stockId: parseInt(val) || 0 }));
+                                                            }
+                                                        }}
+                                                        placeholder="ID Kho thô"
+                                                        class="block w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-sm text-white font-mono"
+                                                    />
+                                                )}
+                                            </div>
+
+                                            <div>
+                                                <label class="block text-xs font-semibold text-slate-400 mb-1">Mã Hướng Nhập (Type)</label>
+                                                <input 
+                                                    type="text" 
+                                                    value={inputType} 
+                                                    onChange={(e) => setInputType(e.target.value)}
+                                                    class="block w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-sm text-white"
+                                                />
+                                            </div>
+                                            
+                                            <div>
+                                                <label class="block text-xs font-semibold text-slate-400 mb-1">Movement Type</label>
+                                                <input 
+                                                    type="text" 
+                                                    value={movementTypeId} 
+                                                    onChange={(e) => setMovementTypeId(e.target.value)}
+                                                    class="block w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-sm text-white"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label class="block text-xs font-semibold text-slate-400 mb-1">Ghi chú phiếu nhập (Notes)</label>
+                                            <textarea 
+                                                rows="2" 
+                                                value={notes} 
+                                                onChange={(e) => setNotes(e.target.value)}
+                                                placeholder="Ví dụ: Nhập kho từ PO theo hóa đơn ngày..."
+                                                class="block w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                            ></textarea>
+                                        </div>
+                                    </div>
+
+                                    <div class="pt-6 border-t border-slate-800">
+                                        <button 
+                                            onClick={runSingleAutomation}
+                                            disabled={currentStep === 1 || currentStep === 2 || currentStep === 4}
+                                            class="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white py-3 px-4 rounded-xl font-semibold shadow-lg shadow-indigo-600/25 flex items-center justify-center space-x-2 transition-all disabled:opacity-50 disabled:pointer-events-none"
+                                        >
+                                            <Icon name="play" className="w-5 h-5" />
+                                            <span>BẮT ĐẦU NHẬN ĐƠN LẺ</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Right Side: Dynamic Workspace & Logs */}
+                                <div class="flex-1 bg-slate-950 flex flex-col overflow-hidden">
+                                    <div class="flex-1 overflow-y-auto p-6 space-y-6">
+                                        {generatedPayload ? (
+                                            <div class="space-y-6">
+                                                {/* Header Info Banner of PO parsed */}
+                                                <div class="bg-indigo-950/30 border border-indigo-500/20 rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                                    <div class="flex items-center space-x-3">
+                                                        <div class="w-10 h-10 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center">
+                                                            <Icon name="check-square" className="w-5 h-5" />
+                                                        </div>
+                                                        <div>
+                                                            <h4 class="text-sm font-semibold text-white">Đã chuẩn bị thông tin Phiếu Nhập thành công</h4>
+                                                            <p class="text-xs text-slate-400">PO: <span class="text-indigo-300 font-mono font-semibold">{generatedPayload.docRefs[0].docNumber}</span> | PO ID gốc: <span class="text-indigo-300 font-mono">{generatedPayload.docRefs[0].docId}</span></p>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <div class="flex items-center space-x-2">
+                                                        <button 
+                                                            onClick={() => copyToClipboard(JSON.stringify(generatedPayload, null, 2))}
+                                                            class="bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1 transition-all"
+                                                        >
+                                                            <Icon name="copy" className="w-3.5 h-3.5" /> Copy JSON Phiếu Nhập
+                                                        </button>
+                                                        
+                                                        <button 
+                                                            onClick={submitSingleGoodsReceipt}
+                                                            disabled={currentStep === 4}
+                                                            class="bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white px-4 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all"
+                                                        >
+                                                            <Icon name="send" className="w-3.5 h-3.5" /> {currentStep === 4 ? 'Đang nộp...' : 'GỬI LÊN HỆ THỐNG'}
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                {/* Editable Table */}
+                                                <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl">
+                                                    <div class="overflow-x-auto">
+                                                        <table class="w-full text-left border-collapse text-xs">
+                                                            <thead>
+                                                                <tr class="border-b border-slate-800 text-[10px] font-bold uppercase text-slate-400 bg-slate-950/40">
+                                                                    <th class="p-3">Sản phẩm</th>
+                                                                    <th class="p-3">SKU</th>
+                                                                    <th class="p-3 text-right">SL Đặt</th>
+                                                                    <th class="p-3 text-right">SL Thực Nhập</th>
+                                                                    <th class="p-3">Đơn vị</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody class="divide-y divide-slate-800/60">
+                                                                {generatedPayload.items.map((item, idx) => (
+                                                                    <tr key={idx} class="hover:bg-slate-800/30">
+                                                                        <td class="p-3">
+                                                                            <div class="font-medium text-slate-200">{item.productName}</div>
+                                                                        </td>
+                                                                        <td class="p-3 font-mono text-slate-400">{item.sku || 'N/A'}</td>
+                                                                        <td class="p-3 text-right text-slate-400">{item.orderQuantity}</td>
+                                                                        <td class="p-3 text-right">
+                                                                            <input 
+                                                                                type="number" 
+                                                                                value={item.quantity}
+                                                                                onChange={(e) => {
+                                                                                    const val = parseFloat(e.target.value) || 0;
+                                                                                    const updated = { ...generatedPayload };
+                                                                                    updated.items[idx].quantity = val;
+                                                                                    setGeneratedPayload(updated);
+                                                                                }}
+                                                                                class="w-20 px-2 py-1 text-right bg-slate-950 border border-slate-800 rounded font-semibold text-white focus:outline-none"
+                                                                            />
+                                                                        </td>
+                                                                        <td class="p-3 text-slate-400">{item.unitName}</td>
+                                                                    </tr>
+                                                                ))}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div class="h-full flex flex-col items-center justify-center py-20 text-center max-w-xl mx-auto space-y-4">
+                                                <div class="w-16 h-16 rounded-2xl bg-indigo-600/10 text-indigo-400 flex items-center justify-center">
+                                                    <Icon name="cpu" className="w-8 h-8 animate-pulse" />
+                                                </div>
+                                                <div>
+                                                    <h3 class="text-base font-bold text-white">Chưa xử lý đơn hàng</h3>
+                                                    <p class="text-xs text-slate-400 mt-1">Cấu hình tham số và bấm nút Bắt đầu để chuẩn bị phiếu nhập đơn lẻ.</p>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Log Terminal */}
+                                        <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden mt-6">
+                                            <div class="p-4 bg-slate-950 font-mono text-xs h-40 overflow-y-auto custom-scrollbar space-y-1">
+                                                {stepLogs.map((log, index) => (
+                                                    <div key={index} class="flex items-start space-x-2">
+                                                        <span class="text-slate-600 shrink-0">[{log.timestamp}]</span>
+                                                        <span class={log.type === 'success' ? 'text-emerald-400' : log.type === 'error' ? 'text-rose-400' : 'text-slate-300'}>{log.message}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+
+                        {/* Tab: UPDATE GR BATCH */}
+                        {activeTab === 'update-gr' && (
+                            <div class="flex-1 flex flex-col xl:flex-row overflow-hidden">
+                                <div class="w-full xl:w-5/12 bg-slate-900 border-r border-slate-800 p-6 overflow-y-auto space-y-6 flex flex-col justify-between">
+                                    <div class="space-y-6">
+                                        <div class="border-b border-slate-800 pb-3">
+                                            <h2 class="text-base font-semibold text-white flex items-center gap-2">
+                                                <span class="w-6 h-6 rounded-md bg-indigo-500/10 text-indigo-400 flex items-center justify-center text-xs">1</span>
+                                                Dán danh sách GR ID & Ngày cần đổi
+                                            </h2>
+                                            <p class="text-xs text-slate-400 mt-1">Dữ liệu gồm 2 cột: ID Phiếu Nhập và Ngày chứng từ mới.</p>
+                                        </div>
+
+                                        <div>
+                                            <textarea
+                                                rows="10"
+                                                value={updateGrBatchText}
+                                                onChange={(e) => setUpdateGrBatchText(e.target.value)}
+                                                placeholder="148356\t12/05/2026\n148357\t13/05/2026"
+                                                class="w-full p-4 bg-slate-950 border border-slate-800 rounded-xl font-mono text-xs text-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 custom-scrollbar"
+                                            ></textarea>
+                                            <div class="flex justify-between items-center mt-2">
+                                                <span class="text-[10px] text-slate-500 italic">Định dạng hỗ trợ: DD/MM/YYYY hoặc YYYY-MM-DD</span>
+                                                <button
+                                                    onClick={handleParseUpdateGrBatch}
+                                                    class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-4 py-2 rounded-lg transition-all flex items-center gap-1.5 shadow-md shadow-indigo-600/10"
+                                                >
+                                                    <Icon name="refresh-cw" className="w-3.5 h-3.5" /> Nạp danh sách
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div class="border-b border-slate-800 pb-3 pt-2">
+                                            <h2 class="text-base font-semibold text-white flex items-center gap-2">
+                                                <span class="w-6 h-6 rounded-md bg-indigo-500/10 text-indigo-400 flex items-center justify-center text-xs">2</span>
+                                                Tham số chạy
+                                            </h2>
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-semibold text-slate-400 mb-1">Độ trễ giãn cách (Delay ms)</label>
+                                            <input 
+                                                type="number" 
+                                                value={updateGrDelay}
+                                                onChange={(e) => setUpdateGrDelay(Math.max(200, parseInt(e.target.value) || 0))}
+                                                class="block w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-sm text-white font-mono"
+                                                placeholder="1000"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div class="pt-6 border-t border-slate-800 flex gap-3">
+                                        <button 
+                                            onClick={runUpdateGrBatch}
+                                            disabled={isUpdateGrBatchRunning || updateGrTasks.length === 0}
+                                            class="flex-1 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white py-3 px-4 rounded-xl font-bold shadow-lg shadow-indigo-600/25 flex items-center justify-center space-x-2 transition-all disabled:opacity-50 disabled:pointer-events-none"
+                                        >
+                                            <Icon name="play" className="w-5 h-5" />
+                                            <span>CHẠY CẬP NHẬT</span>
+                                        </button>
+
+                                        {isUpdateGrBatchRunning && (
+                                            <button 
+                                                onClick={stopUpdateGrBatch}
+                                                class="bg-rose-600 hover:bg-rose-500 text-white py-3 px-4 rounded-xl font-bold flex items-center justify-center space-x-2 transition-all"
+                                            >
+                                                <Icon name="pause" className="w-5 h-5" />
+                                                <span>DỪNG</span>
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div class="flex-1 bg-slate-950 flex flex-col overflow-hidden">
+                                    <div class="bg-slate-900 border-b border-slate-800 p-5">
+                                        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                            <div>
+                                                <h3 class="text-sm font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+                                                    <span class="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse"></span>
+                                                    Tiến độ cập nhật
+                                                </h3>
+                                            </div>
+
+                                            <div class="flex items-center gap-2">
+                                                <span class="text-xs bg-slate-800 text-slate-400 px-2.5 py-1 rounded-lg">Tổng: <b>{updateGrStats.total}</b></span>
+                                                <span class="text-xs bg-indigo-950/40 text-indigo-400 px-2.5 py-1 rounded-lg border border-indigo-500/20">Chạy: <b>{updateGrStats.processing}</b></span>
+                                                <span class="text-xs bg-emerald-950/40 text-emerald-400 px-2.5 py-1 rounded-lg border border-emerald-500/20">Thành công: <b>{updateGrStats.success}</b></span>
+                                                <span class="text-xs bg-rose-950/40 text-rose-400 px-2.5 py-1 rounded-lg border border-rose-500/20">Lỗi: <b>{updateGrStats.failed}</b></span>
+                                            </div>
+                                        </div>
+
+                                        {updateGrTasks.length > 0 && (
+                                            <div class="w-full bg-slate-950 rounded-full h-2 mt-4 overflow-hidden border border-slate-800">
+                                                <div 
+                                                    class="bg-indigo-500 h-full transition-all duration-300"
+                                                    style={{ width: `${((updateGrStats.success + updateGrStats.failed) / updateGrStats.total) * 100}%` }}
+                                                ></div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div class="flex-1 flex flex-col md:flex-row overflow-hidden">
+                                        <div class="w-full md:w-7/12 border-r border-slate-800 overflow-y-auto custom-scrollbar">
+                                            <table class="w-full text-left border-collapse">
+                                                <thead>
+                                                    <tr class="border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-950/40 sticky top-0 z-10">
+                                                        <th class="p-3">#</th>
+                                                        <th class="p-3">GR ID</th>
+                                                        <th class="p-3">Ngày mới</th>
+                                                        <th class="p-3">Tiến trình</th>
+                                                        <th class="p-3 text-right">Trạng thái</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody class="divide-y divide-slate-800/40 text-xs">
+                                                    {updateGrTasks.length === 0 ? (
+                                                        <tr><td colSpan="5" class="p-8 text-center text-slate-600">Chưa có dữ liệu nào được nạp.</td></tr>
+                                                    ) : (
+                                                        updateGrTasks.map((task, idx) => (
+                                                            <tr 
+                                                                key={task.id} 
+                                                                onClick={() => setSelectedUpdateGrTaskIndex(idx)}
+                                                                class={`hover:bg-slate-800/20 transition-colors cursor-pointer ${selectedUpdateGrTaskIndex === idx ? 'bg-indigo-950/20 border-l-2 border-indigo-500' : ''}`}
+                                                            >
+                                                                <td class="p-3 text-slate-500 font-mono">{task.id}</td>
+                                                                <td class="p-3 font-semibold text-slate-200">{task.grId}</td>
+                                                                <td class="p-3">{task.docDate}</td>
+                                                                <td class="p-3 text-slate-400 font-mono">{task.progressStep}</td>
+                                                                <td class="p-3 text-right">
+                                                                    <span class={`inline-block px-2 py-0.5 rounded-full font-bold text-[10px] ${
+                                                                        task.status === 'success' ? 'bg-emerald-950 text-emerald-400 border border-emerald-500/20' :
+                                                                        task.status === 'failed' ? 'bg-rose-950 text-rose-400 border border-rose-500/20' :
+                                                                        task.status === 'processing' ? 'bg-indigo-950 text-indigo-400 border border-indigo-500/20' :
+                                                                        'bg-slate-900 text-slate-500'
+                                                                    }`}>
+                                                                        {task.status === 'success' ? 'Thành công' :
+                                                                         task.status === 'failed' ? 'Lỗi' :
+                                                                         task.status === 'processing' ? 'Đang chạy' :
+                                                                         'Chờ xử lý'}
+                                                                    </span>
+                                                                </td>
+                                                            </tr>
+                                                        ))
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
+
+                                        <div class="flex-1 bg-slate-950/80 p-5 overflow-y-auto custom-scrollbar flex flex-col justify-between">
+                                            {selectedUpdateGrTaskIndex !== null && updateGrTasks[selectedUpdateGrTaskIndex] ? (
+                                                <div class="space-y-4">
+                                                    <div class="border-b border-slate-800 pb-3">
+                                                        <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Chi tiết cập nhật #{updateGrTasks[selectedUpdateGrTaskIndex].id}</h4>
+                                                        <p class="text-sm font-semibold text-white mt-1">GR ID: {updateGrTasks[selectedUpdateGrTaskIndex].grId}</p>
+                                                    </div>
+                                                    
+                                                    <div class="space-y-2">
+                                                        <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Log chi tiết:</span>
+                                                        <div class="p-3 rounded-lg bg-slate-900 border border-slate-800/80 text-xs font-mono text-slate-300 min-h-[60px]">
+                                                            {updateGrTasks[selectedUpdateGrTaskIndex].message || "Không có lỗi nào."}
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    {updateGrTasks[selectedUpdateGrTaskIndex].payload && (
+                                                        <div class="space-y-2">
+                                                            <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">JSON Payload:</span>
+                                                            <pre class="p-3 bg-slate-900 rounded-lg border border-slate-800 text-[10px] text-emerald-400 overflow-x-auto max-h-[160px] custom-scrollbar">
+                                                                {JSON.stringify(updateGrTasks[selectedUpdateGrTaskIndex].payload, null, 2)}
+                                                            </pre>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <div class="h-full flex flex-col items-center justify-center text-slate-600 text-center">
+                                                    <Icon name="terminal" className="w-8 h-8 mb-2 opacity-40" />
+                                                    <p class="text-xs">Chọn dòng để xem chi tiết.</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+
+
+                        {/* Tab: MANUAL CONVERTER */}
+                        {activeTab === 'manual-parser' && (
+                            <div class="flex-1 p-6 overflow-y-auto space-y-6">
+                                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                    <div class="space-y-4">
+                                        <label class="block text-xs font-semibold uppercase text-slate-400">1. Dán JSON chi tiết PO</label>
+                                        <textarea 
+                                            rows="15"
+                                            value={manualPoJson}
+                                            onChange={(e) => setManualPoJson(e.target.value)}
+                                            placeholder="Dán JSON từ API DCorp..."
+                                            class="w-full p-4 bg-slate-950 border border-slate-800 rounded-xl font-mono text-xs text-indigo-300 focus:outline-none custom-scrollbar"
+                                        ></textarea>
+                                        <button onClick={parseManualPo} class="w-full bg-indigo-600 text-white py-2 rounded-lg font-bold text-xs">Ánh Xạ Ngay</button>
+                                    </div>
+
+                                    <div class="space-y-4">
+                                        <label class="block text-xs font-semibold uppercase text-slate-400">2. Kết quả Payload</label>
+                                        <textarea 
+                                            rows="15"
+                                            readOnly
+                                            value={manualResultJson}
+                                            class="w-full p-4 bg-slate-950 border border-slate-800 rounded-xl font-mono text-xs text-emerald-400 focus:outline-none custom-scrollbar"
+                                        ></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+
+                        {/* Tab: SETTINGS */}
+                        {activeTab === 'settings' && (
+                            <div class="flex-1 p-6 overflow-y-auto space-y-6">
+                                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+                                        <h4 class="text-sm font-semibold text-white border-b border-slate-800 pb-2">Tham số Kết nối API</h4>
+                                        <div>
+                                            <label class="block text-xs font-semibold text-slate-400 mb-1">CORS Proxy (Cần bật nếu bị lỗi chặn CORS mạng nội bộ)</label>
+                                            <div class="flex items-center space-x-2 mt-2">
+                                                <input type="checkbox" id="cors-toggle" checked={useCorsProxy} onChange={(e) => setUseCorsProxy(e.target.checked)} class="rounded text-indigo-600 bg-slate-950 border-slate-800" />
+                                                <label htmlFor="cors-toggle" class="text-xs font-medium text-slate-300">Bật CORS Proxy</label>
+                                            </div>
+                                            {useCorsProxy && (
+                                                <input type="text" value={corsProxyUrl} onChange={(e) => setCorsProxyUrl(e.target.value)} class="block w-full mt-2 px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-xs font-mono" />
+                                            )}
+                                        </div>
+
+                                        <div>
+                                            <label class="block text-xs font-semibold text-slate-400 mb-1">Base URL API</label>
+                                            <input type="text" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} class="block w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-xs font-mono text-white" />
+                                        </div>
+
+                                        <div class="grid grid-cols-3 gap-4">
+                                            <div>
+                                                <label class="block text-xs font-semibold text-slate-400 mb-1">Organization ID</label>
+                                                <input type="text" value={orgId} onChange={(e) => setOrgId(e.target.value)} class="block w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-xs font-mono" />
+                                            </div>
+                                            <div>
+                                                <label class="block text-xs font-semibold text-slate-400 mb-1">Phiên bản (v)</label>
+                                                <input type="text" value={version} onChange={(e) => setVersion(e.target.value)} class="block w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-xs font-mono" />
+                                            </div>
+                                            <div>
+                                                <label class="block text-xs font-semibold text-slate-400 mb-1">Ngôn ngữ</label>
+                                                <input type="text" value={lang} onChange={(e) => setLang(e.target.value)} class="block w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-xs font-mono" />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+                                        <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                                            <h4 class="text-sm font-semibold text-white flex items-center gap-1.5">
+                                                <Icon name="key" className="w-4 h-4 text-indigo-400" /> Token Xác Thực DCorp
+                                            </h4>
+                                            {apiToken.trim() ? <span class="text-[9px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded font-bold">Hoạt động</span> : <span class="text-[9px] bg-rose-500/10 text-rose-400 px-2 py-0.5 rounded font-bold">Chưa có</span>}
+                                        </div>
+                                        <textarea 
+                                            rows="4" 
+                                            value={apiToken} 
+                                            onChange={(e) => setApiToken(e.target.value)} 
+                                            placeholder="Dán token Bearer JWT vào đây..." 
+                                            class="block w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-xs font-mono text-slate-300 custom-scrollbar"
+                                        />
+                                        <textarea 
+                                            rows="4" 
+                                            value={customHeadersText} 
+                                            onChange={(e) => setCustomHeadersText(e.target.value)} 
+                                            class="block w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-xs font-mono text-slate-300 custom-scrollbar"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Footer */}
+                    <footer class="bg-slate-950 border-t border-slate-800 px-6 py-3 text-center shrink-0 flex items-center justify-between text-xs text-slate-500">
+                        <span>Thiết bị Tự động hóa ánh xạ dữ liệu DCorp PO ➔ Goods Receipt v2.0 (Batch Mode)</span>
+                        <span class="flex items-center gap-1"><Icon name="shield-check" className="w-4 h-4 text-emerald-500" /> Cục bộ & Bảo mật</span>
+                    </footer>
+                </div>
+            );
+        }
+
+        // Render React App
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
