@@ -992,9 +992,9 @@ export default function BatchApiRunner() {
                             <span className="text-slate-500 block text-[10px]">Thời gian gọi:</span>
                             <span className="text-slate-300">{activeTaskDetail.logInfo.timestamp}</span>
                           </div>
-                          <div className="bg-slate-900/60 p-2.5 rounded-lg border border-slate-800/80">
+                          <div className="bg-slate-900/60 p-2.5 rounded-lg border border-slate-800/80 min-w-0">
                             <span className="text-slate-500 block text-[10px]">Request ID:</span>
-                            <span className="text-slate-300 truncate" title={activeTaskDetail.logInfo.requestId}>{activeTaskDetail.logInfo.requestId || 'N/A'}</span>
+                            <span className="text-slate-300 truncate block" title={activeTaskDetail.logInfo.requestId}>{activeTaskDetail.logInfo.requestId || 'N/A'}</span>
                           </div>
                         </div>
 

@@ -7,8 +7,10 @@ export default function DistinctListInput() {
   const [totalCount, setTotalCount] = useState(0);
   const [itemCounts, setItemCounts] = useState<Record<string, number>>({});
   const [duplicates, setDuplicates] = useState<{ item: string; count: number }[]>([]);
+  const [uniqueItems, setUniqueItems] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
   const [copiedDuplicates, setCopiedDuplicates] = useState(false);
+  const [copiedUnique, setCopiedUnique] = useState(false);
 
   const handleProcess = () => {
     const lines = input.split('\n').map(line => line.trim()).filter(line => line !== '');
@@ -24,11 +26,17 @@ export default function DistinctListInput() {
     const dupes = Object.entries(counts)
       .filter(([_, count]) => count > 1)
       .map(([item, count]) => ({ item, count }));
-    
+
+    // Find unique items (items that appear exactly once)
+    const uniques = Object.entries(counts)
+      .filter(([_, count]) => count === 1)
+      .map(([item]) => item);
+
     setDistinctItems(unique);
     setTotalCount(lines.length);
     setItemCounts(counts);
     setDuplicates(dupes);
+    setUniqueItems(uniques);
   };
 
   const handleClear = () => {
@@ -37,8 +45,10 @@ export default function DistinctListInput() {
     setTotalCount(0);
     setItemCounts({});
     setDuplicates([]);
+    setUniqueItems([]);
     setCopied(false);
     setCopiedDuplicates(false);
+    setCopiedUnique(false);
   };
 
   const handleCopyDistinct = async () => {
@@ -91,6 +101,31 @@ export default function DistinctListInput() {
     }
   };
 
+  const handleCopyUnique = async () => {
+    const text = uniqueItems.join('\n');
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedUnique(true);
+      setTimeout(() => setCopiedUnique(false), 2000);
+    } catch (err) {
+      // Fallback method
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand('copy');
+        setCopiedUnique(true);
+        setTimeout(() => setCopiedUnique(false), 2000);
+      } catch (e) {
+        console.error('Copy failed:', e);
+      }
+      document.body.removeChild(textarea);
+    }
+  };
+
   const distinctCount = distinctItems.length;
 
   return (
@@ -99,7 +134,7 @@ export default function DistinctListInput() {
         <div className="bg-white rounded-lg shadow-lg p-6 flex-1 flex flex-col min-h-0">
           <h1 className="text-3xl font-bold text-gray-800 mb-4">Distinct Count & Duplicate Finder</h1>
 
-          <div className="grid lg:grid-cols-3 gap-6 flex-1 min-h-0">
+          <div className="grid lg:grid-cols-4 gap-6 flex-1 min-h-0">
             <div className="flex flex-col min-h-0">
               <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Input List (paste your items here)
@@ -248,6 +283,64 @@ export default function DistinctListInput() {
                             ×{dup.count}
                           </span>
                         </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+
+            <div className="flex flex-col min-h-0">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Unique
+              </label>
+
+              <div className="bg-gradient-to-br from-green-500 to-emerald-600 text-white rounded-lg p-6 mb-4 shrink-0">
+                <div className="text-sm opacity-90 mb-1">Unique Items (appear once)</div>
+                <div className="text-5xl font-bold">{uniqueItems.length}</div>
+              </div>
+
+              <div className="bg-green-50 rounded-lg p-4 flex-1 overflow-y-auto min-h-0 border-2 border-green-200">
+                <div className="flex justify-between items-center mb-3">
+                  <h3 className="text-sm font-semibold text-green-800 flex items-center gap-2">
+                    <Check size={16} />
+                    Unique Values
+                  </h3>
+                  {uniqueItems.length > 0 && (
+                    <button
+                      onClick={handleCopyUnique}
+                      className={`text-xs px-3 py-1 rounded flex items-center gap-1 transition-colors ${
+                        copiedUnique
+                          ? 'bg-green-600 text-white'
+                          : 'bg-green-500 hover:bg-green-600 text-white'
+                      }`}
+                    >
+                      {copiedUnique ? (
+                        <>
+                          <Check size={14} />
+                          Copied!
+                        </>
+                      ) : (
+                        <>
+                          <Copy size={14} />
+                          Copy
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+                {uniqueItems.length === 0 ? (
+                  <p className="text-gray-400 text-sm text-center py-8">
+                    {totalCount > 0 ? 'No unique items' : 'No items processed yet'}
+                  </p>
+                ) : (
+                  <ul className="space-y-1">
+                    {uniqueItems.map((item, index) => (
+                      <li
+                        key={index}
+                        className="text-sm font-mono bg-white px-3 py-2 rounded border border-green-200"
+                      >
+                        {item}
                       </li>
                     ))}
                   </ul>
