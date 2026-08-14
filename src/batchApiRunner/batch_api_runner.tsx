@@ -9,6 +9,22 @@ const SAMPLE_JSON = [
   { "id": 5, "name": "Hoang Thi E", "email": "e@example.com", "role": "Moderator" }
 ];
 
+// --- CẤU HÌNH LƯU LỊCH SỬ REQUEST ---
+const HISTORY_STORAGE_KEY = 'batchApiRunner.savedRequests.v1';
+const MAX_SAVED_REQUESTS = 10;
+// Các header nhạy cảm KHÔNG được lưu lại (token, khóa bí mật, cookie...)
+const SENSITIVE_HEADER_RE = /(authorization|token|api[-_ ]?key|cookie|secret|password|x[-_]auth)/i;
+
+// Xóa giá trị các header nhạy cảm nhưng vẫn giữ lại key để người dùng biết cần nhập lại
+const sanitizeHeadersForStorage = (hdrs: any[]) =>
+  (hdrs || []).map(h =>
+    SENSITIVE_HEADER_RE.test(h.key || '') ? { key: h.key, value: '' } : { key: h.key, value: h.value }
+  );
+
+// Chữ ký để so trùng (đã bỏ token nên không ảnh hưởng bảo mật)
+const snapshotSignature = (s: any) =>
+  JSON.stringify([s.apiUrl, s.httpMethod, s.bodyTemplate, s.headers, s.jsonInput, s.useCorsProxy, s.corsProxyUrl]);
+
 export default function BatchApiRunner() {
   // --- STATE ---
   const [jsonInput, setJsonInput] = useState(JSON.stringify(SAMPLE_JSON, null, 2));
@@ -41,10 +57,26 @@ export default function BatchApiRunner() {
   const [rightActiveTab, setRightActiveTab] = useState('overview'); // overview, log_detail
   const [selectedTaskIndex, setSelectedTaskIndex] = useState<number | null>(null); // Bản ghi đang được chọn xem chi tiết
 
+  // Lịch sử request đã lưu (localStorage) để tái sử dụng
+  const [savedRequests, setSavedRequests] = useState<any[]>([]);
+
   // --- TRẠNG THÁI ĐỒNG BỘ DÙNG TRONG VÒNG LẶP ---
   const isRunningRef = useRef(false);
   const isPausedRef = useRef(false);
   const currentIndexRef = useRef(0);
+
+  // Nạp lịch sử request đã lưu khi khởi động
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(HISTORY_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) setSavedRequests(parsed);
+      }
+    } catch (e) {
+      // Bỏ qua nếu localStorage lỗi hoặc dữ liệu hỏng
+    }
+  }, []);
 
   // Kiểm tra tính hợp lệ của JSON Input khi thay đổi
   useEffect(() => {
@@ -121,6 +153,8 @@ export default function BatchApiRunner() {
       setLogs([]);
       currentIndexRef.current = 0;
       setCurrentIndex(0);
+      // Tự động lưu cấu hình request mỗi lần chạy mới (token đã được loại bỏ)
+      saveCurrentRequest();
     }
     
     // Cập nhật trạng thái tức thời cho Ref
@@ -316,6 +350,61 @@ export default function BatchApiRunner() {
   // Tải dữ liệu JSON mẫu vào trình soạn thảo
   const loadSampleJson = () => {
     setJsonInput(JSON.stringify(SAMPLE_JSON, null, 2));
+  };
+
+  // --- LƯU / TÁI SỬ DỤNG REQUEST (KHÔNG LƯU TOKEN) ---
+  const persistSavedRequests = (list: any[]) => {
+    setSavedRequests(list);
+    try {
+      localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(list));
+    } catch (e) {
+      // Bỏ qua nếu vượt quá dung lượng localStorage
+    }
+  };
+
+  // Tạo bản chụp cấu hình request hiện tại (đã loại bỏ token/authorization)
+  const buildRequestSnapshot = () => ({
+    id: crypto.randomUUID(),
+    savedAt: new Date().toISOString(),
+    apiUrl,
+    httpMethod,
+    headers: sanitizeHeadersForStorage(headers),
+    // Đánh dấu có tồn tại token đã bị loại bỏ để nhắc người dùng nhập lại
+    strippedToken: (headers || []).some(h => SENSITIVE_HEADER_RE.test(h.key || '') && String(h.value || '').trim() !== ''),
+    bodyTemplate,
+    jsonInput,
+    delayMs,
+    useCorsProxy,
+    corsProxyUrl,
+  });
+
+  // Lưu cấu hình request hiện tại vào lịch sử (chống trùng, giữ tối đa MAX_SAVED_REQUESTS)
+  const saveCurrentRequest = () => {
+    const snapshot = buildRequestSnapshot();
+    const sig = snapshotSignature(snapshot);
+    const deduped = savedRequests.filter(s => snapshotSignature(s) !== sig);
+    const next = [snapshot, ...deduped].slice(0, MAX_SAVED_REQUESTS);
+    persistSavedRequests(next);
+  };
+
+  // Áp dụng lại một request đã lưu vào form cấu hình
+  const applySavedRequest = (s: any) => {
+    setApiUrl(s.apiUrl ?? '');
+    setHttpMethod(s.httpMethod ?? 'POST');
+    setHeaders(Array.isArray(s.headers) ? s.headers.map((h: any) => ({ key: h.key, value: h.value })) : []);
+    setBodyTemplate(s.bodyTemplate ?? '');
+    if (s.jsonInput != null) setJsonInput(s.jsonInput);
+    if (typeof s.delayMs === 'number') setDelayMs(s.delayMs);
+    setUseCorsProxy(!!s.useCorsProxy);
+    if (s.corsProxyUrl != null) setCorsProxyUrl(s.corsProxyUrl);
+  };
+
+  const deleteSavedRequest = (id: string) => {
+    persistSavedRequests(savedRequests.filter(s => s.id !== id));
+  };
+
+  const clearSavedRequests = () => {
+    persistSavedRequests([]);
   };
 
   // --- TÍNH TOÁN CÁC THÔNG SỐ ĐỂ HIỂN THỊ ---
@@ -552,6 +641,96 @@ export default function BatchApiRunner() {
                   placeholder="Ví dụ: { 'name': '{{name}}', 'email': '{{email}}' }"
                   className="w-full h-32 bg-slate-950 font-mono text-xs p-3.5 rounded-xl border border-slate-700 focus:border-indigo-500 outline-none resize-y text-indigo-300"
                 />
+              </div>
+            )}
+          </div>
+
+          {/* SAVED REQUESTS HISTORY */}
+          <div className="bg-slate-800/50 rounded-2xl border border-slate-800 p-5 shadow-sm flex flex-col gap-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <span className="w-7 h-7 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </span>
+                <h2 className="text-base font-semibold text-slate-200">Request Gần Đây (Tái sử dụng)</h2>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={saveCurrentRequest}
+                  className="text-[11px] bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/20 px-2.5 py-1.5 rounded-lg transition-all flex items-center gap-1"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                  </svg>
+                  Lưu request hiện tại
+                </button>
+                {savedRequests.length > 0 && (
+                  <button
+                    onClick={clearSavedRequests}
+                    className="text-[11px] bg-slate-800 hover:bg-rose-500/20 hover:text-rose-400 text-slate-300 border border-slate-700 px-2.5 py-1.5 rounded-lg transition-all"
+                  >
+                    Xóa hết
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <p className="text-[10px] text-amber-400/90 flex items-start gap-1.5 bg-amber-500/5 border border-amber-500/20 rounded-lg px-2.5 py-1.5">
+              <svg className="w-3.5 h-3.5 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+              <span>Cấu hình được lưu cục bộ trên trình duyệt. Vì bảo mật, giá trị token/authorization <strong>KHÔNG</strong> được lưu — bạn cần nhập lại sau khi tái sử dụng.</span>
+            </p>
+
+            {savedRequests.length === 0 ? (
+              <div className="text-xs text-slate-500 text-center py-4 bg-slate-900/30 rounded-lg border border-dashed border-slate-800">
+                Chưa có request nào được lưu. Bấm "Lưu request hiện tại" hoặc chạy tiến trình để lưu tự động.
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                {savedRequests.map((s) => (
+                  <div
+                    key={s.id}
+                    className="flex items-center justify-between gap-2 bg-slate-900/60 border border-slate-800 rounded-lg px-3 py-2 hover:border-slate-700 transition-colors"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold font-mono text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 px-1.5 py-0.5 rounded shrink-0">
+                          {s.httpMethod}
+                        </span>
+                        <span className="truncate text-xs font-mono text-slate-300" title={s.apiUrl}>{s.apiUrl || '(không có URL)'}</span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-500">
+                        <span>{new Date(s.savedAt).toLocaleString()}</span>
+                        {s.strippedToken && (
+                          <span className="text-amber-400 flex items-center gap-0.5">
+                            <span className="w-1 h-1 rounded-full bg-amber-400"></span>
+                            token cần nhập lại
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        onClick={() => applySavedRequest(s)}
+                        className="text-[10px] bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white px-2.5 py-1 rounded transition-colors font-semibold"
+                      >
+                        Dùng lại
+                      </button>
+                      <button
+                        onClick={() => deleteSavedRequest(s.id)}
+                        className="p-1.5 bg-slate-700/50 hover:bg-rose-500/20 hover:text-rose-400 text-slate-400 rounded transition-colors border border-slate-700"
+                        title="Xóa request này"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
