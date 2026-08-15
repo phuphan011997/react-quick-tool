@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { BrowserRouter, Routes, Route, Link, useLocation } from "react-router-dom";
 import './App.css'
 import JsonPathTool from "./jsonPath/json_path_tool";
@@ -5,21 +6,36 @@ import SecureNotesApp from "./secureNotes/secure_notes_local";
 import DistinctListInput from "./distinctTool/distinct-list-input";
 import DelimiterTool from "./delimiterTool/delimiter_tool";
 import BatchApiRunner from "./batchApiRunner/batch_api_runner";
+import TableToJson from "./tableToJson/table_to_json";
+
+const APP_NAME = 'Developer Tools';
+
+// Nguồn dùng chung cho Navigation, HomePage và tiêu đề trang
+const TOOLS = [
+  { path: '/jsonPath', name: 'JSON Path Tool', icon: '🔍', description: 'Query and extract data from JSON using path expressions' },
+  { path: '/notes', name: 'Notes', icon: '📒', description: 'Secure Notes and Tasks' },
+  { path: '/distinct', name: 'Distinct Tool', icon: '⌘', description: 'Check distinct and get unique list' },
+  { path: '/delimiter', name: 'Delimiter Tool', icon: '🔗', description: 'Join a list with any delimiter, wrap items, and format output' },
+  { path: '/batch-api', name: 'Batch API Runner', icon: '🚀', description: 'Run APIs in batch from JSON input' },
+  { path: '/table-json', name: 'Table → JSON', icon: '📊', description: 'Convert Excel/Sheets pasted rows into a JSON array' },
+  // Add more tools here in the future
+];
+
+// Cập nhật tiêu đề tab trình duyệt theo tool đang được chọn
+function RouteTitle() {
+  const location = useLocation();
+  useEffect(() => {
+    const tool = TOOLS.find(t => t.path === location.pathname);
+    document.title = tool ? `${tool.icon} ${tool.name} · ${APP_NAME}` : APP_NAME;
+  }, [location.pathname]);
+  return null;
+}
 
 // Navigation component
 function Navigation() {
   const location = useLocation();
-  
-  const tools = [
-    { path: '/jsonPath', name: 'JSON Path Tool', icon: '🔍' },
-    { path: '/notes', name: 'Notes', icon: '📒' },
-	{ path: '/distinct', name: 'Distinct Tool', icon: '⌘' },
-    { path: '/delimiter', name: 'Delimiter Tool', icon: '🔗' },
-    { path: '/batch-api', name: 'Batch API Runner', icon: '🚀' },
-    // Add more tools here in the future
-    // { path: '/csv-parser', name: 'CSV Parser', icon: '📊' },
-    // { path: '/base64', name: 'Base64 Encoder', icon: '🔐' },
-  ];
+
+  const tools = TOOLS;
 
   return (
     <nav className="bg-slate-800 border-b border-slate-700 p-4">
@@ -53,39 +69,7 @@ function Navigation() {
 
 // Home page component
 function HomePage() {
-  const tools = [
-    { 
-      path: '/jsonPath', 
-      name: 'JSON Path Tool', 
-      icon: '🔍',
-      description: 'Query and extract data from JSON using path expressions'
-    },
-    { 
-      path: '/notes', 
-      name: 'Notes', 
-      icon: '📒',
-      description: 'Secure Notes and Tasks'
-    },
-	{ 
-      path: '/distinct', 
-      name: 'Distinct Tool', 
-      icon: '⌘',
-      description: 'Check distinct and get unique list'
-    },
-    {
-      path: '/delimiter',
-      name: 'Delimiter Tool',
-      icon: '🔗',
-      description: 'Join a list with any delimiter, wrap items, and format output'
-    },
-    {
-      path: '/batch-api',
-      name: 'Batch API Runner',
-      icon: '🚀',
-      description: 'Run APIs in batch from JSON input'
-    },
-    // Add more tools here
-  ];
+  const tools = TOOLS;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-8">
@@ -124,6 +108,7 @@ function HomePage() {
 function App() {
   return (
     <BrowserRouter>
+      <RouteTitle />
       <div className="h-screen flex flex-col">
         <Navigation />
         <div className="flex-1 min-h-0 overflow-auto">
@@ -134,6 +119,7 @@ function App() {
             <Route path="/distinct" element={<DistinctListInput />} />
             <Route path="/delimiter" element={<DelimiterTool />} />
             <Route path="/batch-api" element={<BatchApiRunner />} />
+            <Route path="/table-json" element={<TableToJson />} />
           </Routes>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { parseTableToJson } from '../utils/tableToJson';
 
 // Ví dụ dữ liệu JSON mẫu để người dùng dễ dàng kiểm thử ngay lập tức
 const SAMPLE_JSON = [
@@ -24,6 +25,92 @@ const sanitizeHeadersForStorage = (hdrs: any[]) =>
 // Chữ ký để so trùng (đã bỏ token nên không ảnh hưởng bảo mật)
 const snapshotSignature = (s: any) =>
   JSON.stringify([s.apiUrl, s.httpMethod, s.bodyTemplate, s.headers, s.jsonInput, s.useCorsProxy, s.corsProxyUrl]);
+
+// --- PARSER LỆNH cURL ---
+// Tách chuỗi thành các đối số, tôn trọng dấu nháy đơn/kép
+const tokenizeCurl = (input: string): string[] => {
+  const tokens: string[] = [];
+  let cur = '';
+  let inSingle = false;
+  let inDouble = false;
+  let hasToken = false;
+
+  for (let i = 0; i < input.length; i++) {
+    const c = input[i];
+    if (inSingle) {
+      if (c === "'") inSingle = false;
+      else cur += c;
+    } else if (inDouble) {
+      if (c === '"') inDouble = false;
+      else if (c === '\\' && i + 1 < input.length && (input[i + 1] === '"' || input[i + 1] === '\\')) {
+        cur += input[++i];
+      } else cur += c;
+    } else {
+      if (c === "'") { inSingle = true; hasToken = true; }
+      else if (c === '"') { inDouble = true; hasToken = true; }
+      else if (/\s/.test(c)) { if (hasToken || cur.length) { tokens.push(cur); cur = ''; hasToken = false; } }
+      else cur += c;
+    }
+  }
+  if (hasToken || cur.length) tokens.push(cur);
+  return tokens;
+};
+
+// Parse một lệnh curl -> { url, method, headers[], body }
+const parseCurlCommand = (raw: string): { url: string; method: string; headers: any[]; body: string | null } => {
+  let s = (raw || '').trim();
+  if (!s) throw new Error('Chưa nhập lệnh cURL.');
+
+  // Chuẩn hóa nối dòng: bỏ '\' (bash) và '^' (Windows cmd) ở cuối dòng
+  s = s.replace(/\\\r?\n/g, ' ').replace(/\^\r?\n/g, ' ').replace(/\r?\n/g, ' ');
+  // Windows curl thường escape dấu nháy kép thành ^" và % thành ^%
+  s = s.replace(/\^"/g, '"').replace(/\^%/g, '%').replace(/\^\^/g, '^');
+
+  const tokens = tokenizeCurl(s);
+  if (tokens.length && /^curl$/i.test(tokens[0])) tokens.shift();
+
+  let url = '';
+  let method = '';
+  const headers: any[] = [];
+  let body: string | null = null;
+
+  const dataFlags = new Set(['-d', '--data', '--data-raw', '--data-binary', '--data-ascii', '--data-urlencode']);
+
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    if (t === '-X' || t === '--request') {
+      method = (tokens[++i] || '').toUpperCase();
+    } else if (t === '-H' || t === '--header') {
+      const h = tokens[++i] || '';
+      const idx = h.indexOf(':');
+      if (idx > -1) {
+        const key = h.slice(0, idx).trim();
+        const value = h.slice(idx + 1).trim();
+        if (key) headers.push({ key, value });
+      }
+    } else if (dataFlags.has(t)) {
+      const d = tokens[++i] || '';
+      body = body == null ? d : `${body}&${d}`;
+    } else if (t === '-b' || t === '--cookie') {
+      const cookie = tokens[++i] || '';
+      if (cookie) headers.push({ key: 'Cookie', value: cookie });
+    } else if (t === '--url') {
+      url = tokens[++i] || url;
+    } else if (t === '-G' || t === '--get') {
+      if (!method) method = 'GET';
+    } else if (t.startsWith('-')) {
+      // Cờ không cần xử lý (vd -s, -k, -L, --compressed, --location...). Bỏ qua.
+      continue;
+    } else if (!url) {
+      url = t; // đối số trần đầu tiên là URL
+    }
+  }
+
+  if (!url) throw new Error('Không tìm thấy URL trong lệnh cURL.');
+  if (!method) method = body != null ? 'POST' : 'GET';
+
+  return { url, method, headers, body };
+};
 
 export default function BatchApiRunner() {
   // --- STATE ---
@@ -59,6 +146,29 @@ export default function BatchApiRunner() {
 
   // Lịch sử request đã lưu (localStorage) để tái sử dụng
   const [savedRequests, setSavedRequests] = useState<any[]>([]);
+
+  // Nhập cấu hình từ lệnh cURL
+  const [showCurlImport, setShowCurlImport] = useState(false);
+  const [curlText, setCurlText] = useState('');
+  const [curlError, setCurlError] = useState<string | null>(null);
+
+  // Nhập danh sách JSON từ bảng Excel/TSV
+  const [showTableImport, setShowTableImport] = useState(false);
+  const [tableText, setTableText] = useState('');
+  const [tableHasHeader, setTableHasHeader] = useState(true);
+  const [tableDelimiter, setTableDelimiter] = useState<'auto' | '\t' | ',' | ';'>('auto');
+  const [tableInferTypes, setTableInferTypes] = useState(true);
+  const [tableError, setTableError] = useState<string | null>(null);
+
+  // Preview số bản ghi sẽ tạo ra từ bảng đang dán
+  const tablePreviewCount = useMemo(() => {
+    try {
+      if (!tableText.trim()) return 0;
+      return parseTableToJson(tableText, { hasHeader: tableHasHeader, delimiter: tableDelimiter, inferTypes: tableInferTypes }).rows.length;
+    } catch {
+      return 0;
+    }
+  }, [tableText, tableHasHeader, tableDelimiter, tableInferTypes]);
 
   // --- TRẠNG THÁI ĐỒNG BỘ DÙNG TRONG VÒNG LẶP ---
   const isRunningRef = useRef(false);
@@ -352,6 +462,43 @@ export default function BatchApiRunner() {
     setJsonInput(JSON.stringify(SAMPLE_JSON, null, 2));
   };
 
+  // Áp dụng cấu hình được parse từ lệnh cURL vào form
+  const applyCurlImport = () => {
+    try {
+      const parsed = parseCurlCommand(curlText);
+      setApiUrl(parsed.url);
+      setHttpMethod(parsed.method);
+      if (parsed.headers.length > 0) setHeaders(parsed.headers);
+      if (parsed.body != null) setBodyTemplate(parsed.body);
+      setCurlError(null);
+      setShowCurlImport(false);
+      setCurlText('');
+    } catch (e: any) {
+      setCurlError(e.message || 'Không phân tích được lệnh cURL.');
+    }
+  };
+
+  // Chuyển bảng Excel/TSV thành mảng JSON và đổ vào ô nhập liệu
+  const applyTableImport = () => {
+    try {
+      const result = parseTableToJson(tableText, {
+        hasHeader: tableHasHeader,
+        delimiter: tableDelimiter,
+        inferTypes: tableInferTypes,
+      });
+      if (result.rows.length === 0) {
+        setTableError('Không phát hiện bản ghi nào. Kiểm tra lại dữ liệu đã dán.');
+        return;
+      }
+      setJsonInput(JSON.stringify(result.rows, null, 2));
+      setTableError(null);
+      setShowTableImport(false);
+      setTableText('');
+    } catch (e: any) {
+      setTableError(e.message || 'Không phân tích được dữ liệu bảng.');
+    }
+  };
+
   // --- LƯU / TÁI SỬ DỤNG REQUEST (KHÔNG LƯU TOKEN) ---
   const persistSavedRequests = (list: any[]) => {
     setSavedRequests(list);
@@ -501,16 +648,85 @@ export default function BatchApiRunner() {
                 <span className="w-7 h-7 rounded-full bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-xs font-bold text-indigo-400">1</span>
                 <h2 className="text-base font-semibold text-slate-200">Nhập Danh Sách Đối Tượng JSON (Array)</h2>
               </div>
-              <button 
-                onClick={loadSampleJson}
-                className="text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-1.5 rounded-lg transition-colors border border-slate-600 flex items-center gap-1"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                Tải JSON mẫu thử nghiệm
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => { setShowTableImport(v => !v); setTableError(null); }}
+                  className={`text-xs px-3 py-1.5 rounded-lg transition-colors border flex items-center gap-1 ${
+                    showTableImport
+                      ? 'bg-emerald-600 text-white border-emerald-500'
+                      : 'bg-slate-700 hover:bg-slate-600 text-slate-200 border-slate-600'
+                  }`}
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10h6m-6 0a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7" />
+                  </svg>
+                  Dán từ Excel
+                </button>
+                <button
+                  onClick={loadSampleJson}
+                  className="text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-1.5 rounded-lg transition-colors border border-slate-600 flex items-center gap-1"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  Tải JSON mẫu thử nghiệm
+                </button>
+              </div>
             </div>
+
+            {/* Excel/TSV Import Panel */}
+            {showTableImport && (
+              <div className="bg-slate-900/70 border border-emerald-500/20 rounded-xl p-3 flex flex-col gap-2">
+                <label className="text-xs font-medium text-slate-400">Dán trực tiếp bảng nhiều cột copy từ Excel / Google Sheets</label>
+                <textarea
+                  value={tableText}
+                  onChange={(e) => setTableText(e.target.value)}
+                  placeholder={`id\tname\temail\n1\tNguyen Van A\ta@example.com\n2\tTran Thi B\tb@example.com`}
+                  className="w-full h-28 bg-slate-950 font-mono text-[11px] p-3 rounded-lg border border-slate-700 focus:border-emerald-500 outline-none resize-y text-emerald-300"
+                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="flex items-center gap-1.5 text-[11px] text-slate-300 bg-slate-800/60 border border-slate-700 rounded-lg px-2 py-1 cursor-pointer">
+                    <input type="checkbox" checked={tableHasHeader} onChange={(e) => setTableHasHeader(e.target.checked)} className="accent-emerald-500" />
+                    Dòng đầu là tiêu đề
+                  </label>
+                  <label className="flex items-center gap-1.5 text-[11px] text-slate-300 bg-slate-800/60 border border-slate-700 rounded-lg px-2 py-1 cursor-pointer">
+                    <input type="checkbox" checked={tableInferTypes} onChange={(e) => setTableInferTypes(e.target.checked)} className="accent-emerald-500" />
+                    Suy luận kiểu
+                  </label>
+                  <select
+                    value={tableDelimiter}
+                    onChange={(e) => setTableDelimiter(e.target.value as any)}
+                    className="text-[11px] bg-slate-800/60 border border-slate-700 rounded-lg px-2 py-1 text-slate-300 outline-none"
+                  >
+                    <option value="auto">Tự nhận diện</option>
+                    <option value={'\t'}>Tab (Excel)</option>
+                    <option value=",">Dấu phẩy (,)</option>
+                    <option value=";">Chấm phẩy (;)</option>
+                  </select>
+                  <span className="text-[10px] text-slate-500">→ {tablePreviewCount} bản ghi</span>
+                </div>
+                {tableError && (
+                  <div className="text-[11px] text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-lg px-2.5 py-1.5">
+                    {tableError}
+                  </div>
+                )}
+                <div className="flex items-center justify-end gap-1.5">
+                  <button
+                    onClick={() => { setTableText(''); setTableError(null); }}
+                    className="text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-2.5 py-1.5 rounded-lg transition-all"
+                  >
+                    Xóa
+                  </button>
+                  <button
+                    onClick={applyTableImport}
+                    disabled={!tableText.trim()}
+                    className="text-[11px] bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white px-3 py-1.5 rounded-lg transition-all font-semibold"
+                  >
+                    Chuyển thành JSON
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className="relative">
               <textarea
@@ -544,10 +760,64 @@ export default function BatchApiRunner() {
 
           {/* STEP 2: API Configuration */}
           <div className="bg-slate-800/50 rounded-2xl border border-slate-800 p-5 flex flex-col gap-5 shadow-sm">
-            <div className="flex items-center gap-2.5">
-              <span className="w-7 h-7 rounded-full bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-xs font-bold text-indigo-400">2</span>
-              <h2 className="text-base font-semibold text-slate-200">Cấu Hình Gọi Request API</h2>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <span className="w-7 h-7 rounded-full bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-xs font-bold text-indigo-400">2</span>
+                <h2 className="text-base font-semibold text-slate-200">Cấu Hình Gọi Request API</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setShowCurlImport(v => !v); setCurlError(null); }}
+                className={`text-xs px-3 py-1.5 rounded-lg transition-colors border flex items-center gap-1.5 ${
+                  showCurlImport
+                    ? 'bg-indigo-600 text-white border-indigo-500'
+                    : 'bg-slate-700 hover:bg-slate-600 text-slate-200 border-slate-600'
+                }`}
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                Nhập từ cURL
+              </button>
             </div>
+
+            {/* cURL Import Panel */}
+            {showCurlImport && (
+              <div className="bg-slate-900/70 border border-slate-700 rounded-xl p-3 flex flex-col gap-2">
+                <label className="text-xs font-medium text-slate-400">Dán lệnh cURL (hỗ trợ định dạng bash & Windows cmd)</label>
+                <textarea
+                  value={curlText}
+                  onChange={(e) => setCurlText(e.target.value)}
+                  placeholder={`curl -X POST "https://api.example.com/users/{{id}}" \\\n  -H "Content-Type: application/json" \\\n  -d '{ "name": "{{name}}" }'`}
+                  className="w-full h-28 bg-slate-950 font-mono text-[11px] p-3 rounded-lg border border-slate-700 focus:border-indigo-500 outline-none resize-y text-emerald-300"
+                />
+                {curlError && (
+                  <div className="text-[11px] text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-lg px-2.5 py-1.5">
+                    {curlError}
+                  </div>
+                )}
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[10px] text-slate-500">Tự nhận diện method, URL, headers và body. Bạn vẫn có thể dùng biến <code className="text-indigo-400 font-mono bg-indigo-950 px-1 rounded">{"{{key}}"}</code>.</p>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => { setCurlText(''); setCurlError(null); }}
+                      className="text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-2.5 py-1.5 rounded-lg transition-all"
+                    >
+                      Xóa
+                    </button>
+                    <button
+                      type="button"
+                      onClick={applyCurlImport}
+                      disabled={!curlText.trim()}
+                      className="text-[11px] bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white px-3 py-1.5 rounded-lg transition-all font-semibold"
+                    >
+                      Phân tích & Áp dụng
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Method + URL */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
