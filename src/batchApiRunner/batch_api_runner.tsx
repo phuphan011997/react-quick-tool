@@ -23,8 +23,10 @@ const sanitizeHeadersForStorage = (hdrs: any[]) =>
   );
 
 // Chữ ký để so trùng (đã bỏ token nên không ảnh hưởng bảo mật)
+// Lưu ý: KHÔNG đưa jsonInput vào chữ ký — việc trùng lặp chỉ xét endpoint/headers/payload,
+// không xét danh sách JSON input phía trên (vì input đó không được lưu lại nữa).
 const snapshotSignature = (s: any) =>
-  JSON.stringify([s.apiUrl, s.httpMethod, s.bodyTemplate, s.headers, s.jsonInput, s.useCorsProxy, s.corsProxyUrl]);
+  JSON.stringify([s.apiUrl, s.httpMethod, s.bodyTemplate, s.headers, s.useCorsProxy, s.corsProxyUrl]);
 
 // --- PARSER LỆNH cURL ---
 // Tách chuỗi thành các đối số, tôn trọng dấu nháy đơn/kép
@@ -510,8 +512,11 @@ export default function BatchApiRunner() {
   };
 
   // Tạo bản chụp cấu hình request hiện tại (đã loại bỏ token/authorization)
+  // Lưu ý: KHÔNG lưu jsonInput (danh sách JSON nhập ở Bước 1) — chỉ lưu endpoint,
+  // header mẫu (trừ token) và payload để tái sử dụng.
   const buildRequestSnapshot = () => ({
     id: crypto.randomUUID(),
+    name: '',
     savedAt: new Date().toISOString(),
     apiUrl,
     httpMethod,
@@ -519,28 +524,30 @@ export default function BatchApiRunner() {
     // Đánh dấu có tồn tại token đã bị loại bỏ để nhắc người dùng nhập lại
     strippedToken: (headers || []).some(h => SENSITIVE_HEADER_RE.test(h.key || '') && String(h.value || '').trim() !== ''),
     bodyTemplate,
-    jsonInput,
     delayMs,
     useCorsProxy,
     corsProxyUrl,
   });
 
-  // Lưu cấu hình request hiện tại vào lịch sử (chống trùng, giữ tối đa MAX_SAVED_REQUESTS)
+  // Lưu cấu hình request hiện tại vào lịch sử (chống trùng hoàn toàn, giữ tối đa MAX_SAVED_REQUESTS)
+  // Nếu request giống hệt đã tồn tại, giữ lại tên đã đặt trước đó và chỉ cập nhật lên đầu danh sách.
   const saveCurrentRequest = () => {
     const snapshot = buildRequestSnapshot();
     const sig = snapshotSignature(snapshot);
+    const existing = savedRequests.find(s => snapshotSignature(s) === sig);
+    if (existing?.name) snapshot.name = existing.name;
     const deduped = savedRequests.filter(s => snapshotSignature(s) !== sig);
     const next = [snapshot, ...deduped].slice(0, MAX_SAVED_REQUESTS);
     persistSavedRequests(next);
   };
 
   // Áp dụng lại một request đã lưu vào form cấu hình
+  // Chỉ áp dụng endpoint, header mẫu (trừ token) và payload — KHÔNG đụng tới JSON input ở Bước 1.
   const applySavedRequest = (s: any) => {
     setApiUrl(s.apiUrl ?? '');
     setHttpMethod(s.httpMethod ?? 'POST');
     setHeaders(Array.isArray(s.headers) ? s.headers.map((h: any) => ({ key: h.key, value: h.value })) : []);
     setBodyTemplate(s.bodyTemplate ?? '');
-    if (s.jsonInput != null) setJsonInput(s.jsonInput);
     if (typeof s.delayMs === 'number') setDelayMs(s.delayMs);
     setUseCorsProxy(!!s.useCorsProxy);
     if (s.corsProxyUrl != null) setCorsProxyUrl(s.corsProxyUrl);
@@ -548,6 +555,11 @@ export default function BatchApiRunner() {
 
   const deleteSavedRequest = (id: string) => {
     persistSavedRequests(savedRequests.filter(s => s.id !== id));
+  };
+
+  // Đặt/đổi tên gợi nhớ cho một request đã lưu
+  const renameSavedRequest = (id: string, name: string) => {
+    persistSavedRequests(savedRequests.map(s => s.id === id ? { ...s, name } : s));
   };
 
   const clearSavedRequests = () => {
@@ -951,7 +963,7 @@ export default function BatchApiRunner() {
               <svg className="w-3.5 h-3.5 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
-              <span>Cấu hình được lưu cục bộ trên trình duyệt. Vì bảo mật, giá trị token/authorization <strong>KHÔNG</strong> được lưu — bạn cần nhập lại sau khi tái sử dụng.</span>
+              <span>Chỉ endpoint, header mẫu (trừ token/authorization) và payload được lưu cục bộ trên trình duyệt — <strong>không</strong> lưu danh sách JSON input ở Bước 1. Vì bảo mật, giá trị token/authorization <strong>KHÔNG</strong> được lưu — bạn cần nhập lại sau khi tái sử dụng.</span>
             </p>
 
             {savedRequests.length === 0 ? (
@@ -966,6 +978,14 @@ export default function BatchApiRunner() {
                     className="flex items-center justify-between gap-2 bg-slate-900/60 border border-slate-800 rounded-lg px-3 py-2 hover:border-slate-700 transition-colors"
                   >
                     <div className="min-w-0 flex-1">
+                      <input
+                        type="text"
+                        value={s.name || ''}
+                        onChange={(e) => renameSavedRequest(s.id, e.target.value)}
+                        placeholder="Đặt tên gợi nhớ (tuỳ chọn)..."
+                        title="Đặt tên gợi nhớ cho request này"
+                        className="w-full bg-transparent text-xs font-semibold text-slate-200 placeholder:text-slate-600 placeholder:font-normal outline-none border-b border-transparent focus:border-indigo-500 mb-1 py-0.5"
+                      />
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] font-bold font-mono text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 px-1.5 py-0.5 rounded shrink-0">
                           {s.httpMethod}
